@@ -11,6 +11,13 @@ type Activo = {
   estado_actual: 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'ENTREGADO' | 'EN_DISPUTA'
   rut_custodio: string
   comentario_incidencia: string
+  calidad: 'Bueno' | 'Un poco dañado' | 'Extraviado'
+  detallesIncidencia: string
+}
+
+type LogEntry = {
+  texto: string
+  tipo: 'info' | 'error' | 'exito' | 'advertencia'
 }
 
 function App() {
@@ -19,6 +26,32 @@ function App() {
   const [descripcionPaquete, setDescripcionPaquete] = useState('')
   
   const [activeTab, setActiveTab] = useState<TabType>('seguimiento')
+  const [logs, setLogs] = useState<LogEntry[]>([])
+
+  // Helper para formatear timestamp
+  const formatTimestamp = () => {
+    const now = new Date()
+    const dd = String(now.getDate()).padStart(2, '0')
+    const mm = String(now.getMonth() + 1).padStart(2, '0')
+    const yyyy = now.getFullYear()
+    const hh = String(now.getHours()).padStart(2, '0')
+    const min = String(now.getMinutes()).padStart(2, '0')
+    return `${dd}-${mm}-${yyyy} | ${hh}:${min}`
+  }
+
+  // Helper para agregar log
+  const addLog = (nuevoEstado: string, tipo: 'info' | 'error' | 'exito' | 'advertencia' = 'info') => {
+    const timestamp = formatTimestamp()
+    const texto = `[${timestamp}]: Paquete [${descripcionPaquete}, ${rutResponsable}] Estado: ${nuevoEstado}`
+    setLogs((prev) => [{ texto, tipo }, ...prev])
+  }
+
+  // Helper para agregar log personalizado
+  const addLogPersonalizado = (mensaje: string, tipo: 'info' | 'error' | 'exito' | 'advertencia' = 'info') => {
+    const timestamp = formatTimestamp()
+    const texto = `[${timestamp}]: ${mensaje}`
+    setLogs((prev) => [{ texto, tipo }, ...prev])
+  }
 
   const [activo, setActivo] = useState<Activo>({
     id: 1,
@@ -27,6 +60,8 @@ function App() {
     estado_actual: 'SOLICITADO',
     rut_custodio: '',
     comentario_incidencia: '',
+    calidad: 'Bueno',
+    detallesIncidencia: '',
   })
 
   const [rutInput, setRutInput] = useState('')
@@ -45,8 +80,11 @@ function App() {
     setSimulacionIniciada(true)
   }
 
-  const updateActivo = (patch: Partial<Activo>) => {
+  const updateActivo = (patch: Partial<Activo>, tipoLog: 'info' | 'error' | 'exito' | 'advertencia' = 'info') => {
     setActivo((prev) => ({ ...prev, ...patch }))
+    if (patch.estado_actual) {
+      addLog(patch.estado_actual, tipoLog)
+    }
   }
 
   const [hoveredStep, setHoveredStep] = useState<string | null>(null)
@@ -80,40 +118,52 @@ function App() {
             {steps.map((s, i) => {
               const completed = i <= currentIndex
               const isCurrent = i === currentIndex
+              const isDisputaState = activo.estado_actual === 'EN_DISPUTA' && i < steps.length
+              const disputaOccurredAt = isDisputaState && i <= currentIndex
+              
               return (
-                <div key={s} className="flex items-center">
-                  {/* Tarjeta rectangular con tooltip */}
-                  <div
-                    className="relative"
-                    onMouseEnter={() => setHoveredStep(s)}
-                    onMouseLeave={() => setHoveredStep(null)}
-                  >
+                <div key={s} className="flex items-center gap-2">
+                  <div className="flex flex-col items-center">
+                    {/* Tarjeta rectangular con tooltip */}
                     <div
-                      className={`px-6 py-3 rounded-xl min-w-[150px] text-center font-medium transition-all cursor-pointer ${
-                        isCurrent
-                          ? 'bg-emerald-400 text-slate-900 shadow-lg shadow-emerald-500/50 scale-105'
-                          : completed
-                          ? 'bg-emerald-700/60 text-white border border-emerald-500/50'
-                          : 'bg-white/5 text-gray-300 border border-white/10'
-                      }`}
+                      className="relative"
+                      onMouseEnter={() => setHoveredStep(s)}
+                      onMouseLeave={() => setHoveredStep(null)}
                     >
-                      {s.replace('_', ' ')}
+                      <div
+                        className={`px-6 py-3 rounded-xl min-w-[150px] text-center font-medium transition-all cursor-pointer ${
+                          disputaOccurredAt && i === currentIndex
+                            ? 'bg-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.6)]'
+                            : isCurrent
+                            ? 'bg-emerald-400 text-slate-900 shadow-lg shadow-emerald-500/50 scale-105'
+                            : completed
+                            ? 'bg-emerald-700/60 text-white border border-emerald-500/50'
+                            : 'bg-white/5 text-gray-300 border border-white/10'
+                        }`}
+                      >
+                        {s.replace('_', ' ')}
+                      </div>
+
+                      {/* Tooltip flotante */}
+                      {hoveredStep === s && (
+                        <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-slate-900/90 backdrop-blur border border-white/20 p-3 rounded-lg text-xs w-48 shadow-xl z-50 pointer-events-none">
+                          <p className="text-gray-200"><strong>Estado:</strong> {s.replace('_', ' ')}</p>
+                          <p className="text-gray-300 mt-1"><strong>Custodio:</strong> {rutResponsable || 'N/A'}</p>
+                          <p className="text-gray-300"><strong>Sello:</strong> <span className={selloEstado === 'Conforme' ? 'text-emerald-400' : 'text-red-400'}>{selloEstado}</span></p>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Tooltip flotante */}
-                    {hoveredStep === s && (
-                      <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-slate-900/90 backdrop-blur border border-white/20 p-3 rounded-lg text-xs w-48 shadow-xl z-50 pointer-events-none">
-                        <p className="text-gray-200"><strong>Estado:</strong> {s.replace('_', ' ')}</p>
-                        <p className="text-gray-300 mt-1"><strong>Custodio:</strong> {rutResponsable || 'N/A'}</p>
-                        <p className="text-gray-300"><strong>Sello:</strong> <span className={selloEstado === 'Conforme' ? 'text-emerald-400' : 'text-red-400'}>{selloEstado}</span></p>
-                      </div>
+                    {/* Detalles de incidencia si está en disputa */}
+                    {disputaOccurredAt && i === currentIndex && activo.detallesIncidencia && (
+                      <p className="text-rose-400 text-xs mt-1 block text-center max-w-[150px]">{activo.detallesIncidencia}</p>
                     )}
                   </div>
 
                   {/* Conector entre pasos */}
                   {i < steps.length - 1 && (
                     <div
-                      className={`w-8 h-1 mx-2 rounded-full transition-all ${
+                      className={`w-8 h-1 rounded-full transition-all ${
                         i < currentIndex ? 'bg-emerald-400 shadow-lg shadow-emerald-500/50' : 'bg-white/10'
                       }`}
                     />
@@ -157,16 +207,18 @@ function App() {
   const renderOperador = () => {
     const handleStartTransit = () => {
       if (!rutInput) return alert('Ingrese RUT del custodio antes de iniciar tránsito')
-      updateActivo({ estado_actual: 'EN_TRANSITO', rut_custodio: rutInput })
+      updateActivo({ estado_actual: 'EN_TRANSITO', rut_custodio: rutInput }, 'info')
     }
 
     const handleReceiveAcopio = () => {
-      updateActivo({ estado_actual: 'EN_ACOPIO' })
+      updateActivo({ estado_actual: 'EN_ACOPIO' }, 'info')
     }
 
     const handleConfirmEntrega = () => {
-      updateActivo({ estado_actual: 'ENTREGADO' })
+      updateActivo({ estado_actual: 'ENTREGADO' }, 'info')
     }
+
+    const isDisabled = activo.estado_actual === 'EN_DISPUTA'
 
     return (
       <div className="space-y-6">
@@ -179,37 +231,66 @@ function App() {
               <label className="text-sm text-gray-300 mb-2">RUT Custodio</label>
               <input
                 value={rutInput}
-                onChange={(e) => setRutInput(e.target.value)}
+                disabled
                 placeholder="12.345.678-9"
-                className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:border-blue-500 focus:bg-white/10 transition"
+                className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-gray-400 placeholder-gray-500 cursor-not-allowed opacity-60"
               />
             </div>
 
             <div className="flex flex-col">
               <label className="text-sm text-gray-300 mb-2">Estado actual</label>
-              <div className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-200">{activo.estado_actual}</div>
+              <div className="inline-flex">
+                <span className={`px-4 py-1.5 rounded-full font-semibold text-sm ${
+                  activo.estado_actual === 'EN_DISPUTA'
+                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                }`}>
+                  {activo.estado_actual}
+                </span>
+              </div>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <button
               onClick={handleStartTransit}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition-colors"
+              disabled={isDisabled}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Iniciar Tránsito
             </button>
             <button
               onClick={handleReceiveAcopio}
-              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-white transition-colors"
+              disabled={isDisabled}
+              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Recibir en Acopio
             </button>
             <button
               onClick={handleConfirmEntrega}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition-colors"
+              disabled={isDisabled}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Confirmar Entrega
             </button>
+          </div>
+        </div>
+
+        {/* Log de Custodia */}
+        <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
+          <h2 className="text-lg font-semibold text-white mb-4">📋 Historial de Eventos</h2>
+          <div className="font-mono text-xs bg-black/30 p-4 rounded-xl border border-white/5 h-40 overflow-y-auto space-y-1">
+            {logs.length === 0 ? (
+              <p className="text-gray-500">No hay eventos registrados aún...</p>
+            ) : (
+              logs.map((log, idx) => {
+                let colorClass = 'text-slate-300'
+                if (log.tipo === 'error') colorClass = 'text-rose-400 font-semibold'
+                else if (log.tipo === 'exito') colorClass = 'text-emerald-400 font-semibold'
+                else if (log.tipo === 'advertencia') colorClass = 'text-yellow-400 font-semibold'
+                return <div key={idx} className={colorClass}>{log.texto}</div>
+              })
+            )}
           </div>
         </div>
       </div>
@@ -218,7 +299,39 @@ function App() {
 
   const renderAnalista = () => {
     const handleSimularAnomalia = () => {
-      updateActivo({ estado_actual: 'EN_DISPUTA', comentario_incidencia: 'Sello dañado - simulación' })
+      updateActivo({ estado_actual: 'EN_DISPUTA', comentario_incidencia: 'Sello dañado - simulación', detallesIncidencia: 'Sello dañado - simulación' }, 'error')
+    }
+
+    const handleSimularChoque = () => {
+      const probabilidad = Math.random()
+      if (probabilidad < 0.1) {
+        // 10% - Paquete extraviado
+        updateActivo({ 
+          estado_actual: 'EN_DISPUTA', 
+          calidad: 'Un poco dañado',
+          detallesIncidencia: 'Vehículo accidentado - Paquete perdido',
+          comentario_incidencia: 'Vehículo accidentado - Paquete perdido'
+        }, 'error')
+        addLogPersonalizado('Simulación de Choque: Paquete EXTRAVIADO', 'error')
+      } else {
+        // 90% - Daño menor
+        updateActivo({
+          calidad: 'Un poco dañado',
+          detallesIncidencia: 'Colisión menor - Activo dañado',
+          comentario_incidencia: 'Colisión menor - Activo dañado'
+        }, 'advertencia')
+        addLogPersonalizado('Simulación de Choque: Daño menor detectado', 'advertencia')
+      }
+    }
+
+    const handleResolverDisputa = () => {
+      const nuevaCalidad = activo.calidad === 'Un poco dañado' ? 'Un poco dañado' : 'Bueno'
+      updateActivo({ 
+        estado_actual: 'EN_ACOPIO', 
+        comentario_incidencia: '',
+        detallesIncidencia: '',
+        calidad: nuevaCalidad
+      }, 'exito')
     }
 
     return (
@@ -236,16 +349,30 @@ function App() {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSimularAnomalia}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-white"
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-white transition-colors"
               >
                 Simular Anomalía de Sello
               </button>
+              <button
+                onClick={handleSimularChoque}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-white transition-colors"
+              >
+                Simular Choque
+              </button>
+              {activo.estado_actual === 'EN_DISPUTA' && (
+                <button
+                  onClick={handleResolverDisputa}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition-colors"
+                >
+                  Resolver Disputa (Liberar Activo)
+                </button>
+              )}
             </div>
           </div>
 
           {activo.estado_actual === 'EN_DISPUTA' && (
             <div className="mt-4 rounded-lg p-4 bg-red-900/60 border border-red-500 text-red-100">
-              <strong>Disputa abierta:</strong> {activo.comentario_incidencia}
+              <strong>🚨 Disputa abierta:</strong> {activo.comentario_incidencia}
             </div>
           )}
         </div>
@@ -322,7 +449,6 @@ function App() {
 
             <div className="mt-6 pt-6 border-t border-white/10">
               <p className="text-xs text-gray-400 text-center">
-                ✨ Prototipo Mínimo Navegable v1.0
               </p>
             </div>
           </div>

@@ -57,7 +57,7 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
           {/* Footer */}
           <div className="px-6 py-6 border-t border-white/10">
             <div className="text-xs text-gray-500 space-y-2">
-              <p>✨ Prototipo Mínimo Navegable</p>
+              <p>Packet Tracker</p>
               <p>v1.0.0</p>
             </div>
           </div>
