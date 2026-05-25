@@ -60,27 +60,9 @@ En la sección inferior del *Portal Operador* se despliega un terminal de evento
 - **Tailwind CSS** (Clases utilitarias y variables de cristalomorfismo `backdrop-blur`).
 - **Lucide React** (Iconografía de logística, alertas y estados).
 
-### Backend (Diseño de la Arquitectura)
+### Backend (Arquitectura Preparada)
 - **Python 3.10+**
-- **Flask** + **Flask-SQLAlchemy** (Definición preliminar de modelos de datos `Usuario`, `Activo`, `CustodyLog` e `Evidence`).
-
-#### Ejecución del Backend
-```bash
-# 1. Ingresar a la carpeta del API
-cd desarrollo-empresa-mensajeria-2/API
-
-# 2. Crear un entorno virtual (opcional pero recomendado)
-python -m venv venv
-source venv/Scripts/activate  # En Windows: venv\Scripts\activate
-
-# 3. Instalar dependencias
-pip install -r requirements.txt
-
-# 4. Ejecutar el servidor
-python run.py
-```
-
-El servidor de API estará disponible en: http://localhost:5000
+- **Flask** + **Flask-SQLAlchemy** (Modelos: `Usuario`, `Activo`, `CustodyLog` e `Evidence`)
 
 ---
 
@@ -89,14 +71,14 @@ El servidor de API estará disponible en: http://localhost:5000
 Para levantar e interactuar con el Prototipo Mínimo Navegable, ejecute los siguientes comandos en su terminal:
 
 ```bash
-# 1. Clonar el repositorio e ingresar a la carpeta del frontend
-cd desarrollo-empresa-mensajeria-2/frontend
+# 1. Ingresar a la carpeta del frontend
+cd frontend
 
-# 2. Instalar el árbol de dependencias de Node.js (React + TypeScript)
+# 2. Instalar dependencias
 npm install
 
-# 3. Levantar el servidor de desarrollo local de Vite
+# 3. Ejecutar el servidor de desarrollo
 npm run dev
 ```
 
-El cliente web interactivo se desplegará en la dirección local: http://localhost:5173
+El cliente web interactivo se desplegará en: http://localhost:5173
