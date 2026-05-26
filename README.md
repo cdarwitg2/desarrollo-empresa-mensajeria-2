@@ -82,3 +82,9 @@ npm run dev
 ```
 
 El cliente web interactivo se desplegará en: http://localhost:5173
+
+Enlaces compartidos Gemini:
+
+Camilo Darwitg: https://gemini.google.com/share/f89a7c7b5a7a
+
+Esban Vejar: https://gemini.google.com/share/4b50b3e5f06e

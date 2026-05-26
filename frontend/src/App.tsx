@@ -204,7 +204,7 @@ function App() {
     )
   }
 
-  const renderOperador = () => {
+ const renderOperador = () => {
     const handleStartTransit = () => {
       if (!rutInput) return alert('Ingrese RUT del custodio antes de iniciar tránsito')
       updateActivo({ estado_actual: 'EN_TRANSITO', rut_custodio: rutInput }, 'info')
@@ -218,12 +218,14 @@ function App() {
       updateActivo({ estado_actual: 'ENTREGADO' }, 'info')
     }
 
-    const isDisabled = activo.estado_actual === 'EN_DISPUTA'
+    // Condicionales lógicos del flujo
+    const isDisputa = activo.estado_actual === 'EN_DISPUTA';
+    const isEntregado = activo.estado_actual === 'ENTREGADO';
 
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold text-white">Portal Operador</h1>
-        <p className="text-gray-300">Gestiona el movimiento del activo</p>
+        <p className="text-gray-300">Gestiona el movimiento del activo paso a paso</p>
 
         <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -251,32 +253,42 @@ function App() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={handleStartTransit}
-              disabled={isDisabled}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Iniciar Tránsito
-            </button>
-            <button
-              onClick={handleReceiveAcopio}
-              disabled={isDisabled}
-              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Recibir en Acopio
-            </button>
-            <button
-              onClick={handleConfirmEntrega}
-              disabled={isDisabled}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Confirmar Entrega
-            </button>
+          {/* RENDERIZADO CONDICIONAL DE BOTONES */}
+          <div className="flex flex-wrap gap-3 mt-4">
+            {activo.estado_actual === 'SOLICITADO' && (
+              <button onClick={handleStartTransit} className="w-full md:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white transition-colors">
+                1. Iniciar Tránsito
+              </button>
+            )}
+
+            {activo.estado_actual === 'EN_TRANSITO' && (
+              <button onClick={handleReceiveAcopio} className="w-full md:w-auto px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-white transition-colors">
+                2. Recibir en Acopio
+              </button>
+            )}
+
+            {activo.estado_actual === 'EN_ACOPIO' && (
+              <button onClick={handleConfirmEntrega} className="w-full md:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition-colors">
+                3. Confirmar Entrega
+              </button>
+            )}
+
+            {/* Mensajes de bloqueo para el operador */}
+            {isDisputa && (
+              <div className="w-full p-4 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-400 text-center text-sm">
+                Operación bloqueada. El activo se encuentra en disputa y requiere intervención del Analista.
+              </div>
+            )}
+            
+            {isEntregado && (
+              <div className="w-full p-4 bg-white/5 border border-white/10 rounded-lg text-gray-400 text-center text-sm">
+                El ciclo logístico de este activo ha concluido exitosamente.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Log de Custodia */}
+        {/* Log de Custodia (se mantiene igual) */}
         <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
           <h2 className="text-lg font-semibold text-white mb-4">📋 Historial de Eventos</h2>
           <div className="font-mono text-xs bg-black/30 p-4 rounded-xl border border-white/5 h-40 overflow-y-auto space-y-1">
@@ -297,7 +309,7 @@ function App() {
     )
   }
 
-  const renderAnalista = () => {
+const renderAnalista = () => {
     const handleSimularAnomalia = () => {
       updateActivo({ estado_actual: 'EN_DISPUTA', comentario_incidencia: 'Sello dañado - simulación', detallesIncidencia: 'Sello dañado - simulación' }, 'error')
     }
@@ -305,34 +317,20 @@ function App() {
     const handleSimularChoque = () => {
       const probabilidad = Math.random()
       if (probabilidad < 0.1) {
-        // 10% - Paquete extraviado
-        updateActivo({ 
-          estado_actual: 'EN_DISPUTA', 
-          calidad: 'Un poco dañado',
-          detallesIncidencia: 'Vehículo accidentado - Paquete perdido',
-          comentario_incidencia: 'Vehículo accidentado - Paquete perdido'
-        }, 'error')
+        updateActivo({ estado_actual: 'EN_DISPUTA', calidad: 'Un poco dañado', detallesIncidencia: 'Vehículo accidentado - Paquete perdido', comentario_incidencia: 'Vehículo accidentado - Paquete perdido'}, 'error')
         addLogPersonalizado('Simulación de Choque: Paquete EXTRAVIADO', 'error')
       } else {
-        // 90% - Daño menor
-        updateActivo({
-          calidad: 'Un poco dañado',
-          detallesIncidencia: 'Colisión menor - Activo dañado',
-          comentario_incidencia: 'Colisión menor - Activo dañado'
-        }, 'advertencia')
+        updateActivo({ calidad: 'Un poco dañado', detallesIncidencia: 'Colisión menor - Activo dañado', comentario_incidencia: 'Colisión menor - Activo dañado' }, 'advertencia')
         addLogPersonalizado('Simulación de Choque: Daño menor detectado', 'advertencia')
       }
     }
 
     const handleResolverDisputa = () => {
       const nuevaCalidad = activo.calidad === 'Un poco dañado' ? 'Un poco dañado' : 'Bueno'
-      updateActivo({ 
-        estado_actual: 'EN_ACOPIO', 
-        comentario_incidencia: '',
-        detallesIncidencia: '',
-        calidad: nuevaCalidad
-      }, 'exito')
+      updateActivo({ estado_actual: 'EN_ACOPIO', comentario_incidencia: '', detallesIncidencia: '', calidad: nuevaCalidad }, 'exito')
     }
+
+    const puedeSimularFallas = activo.estado_actual === 'EN_TRANSITO' || activo.estado_actual === 'EN_ACOPIO';
 
     return (
       <div className="space-y-6">
@@ -340,39 +338,45 @@ function App() {
         <p className="text-gray-300">Herramientas para análisis y contingencia</p>
 
         <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <p className="text-gray-300">Activo: <span className="font-semibold text-white">{activo.descripcion}</span></p>
               <p className="text-gray-400 text-sm">Estado: {activo.estado_actual}</p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleSimularAnomalia}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-white transition-colors"
-              >
-                Simular Anomalía de Sello
-              </button>
-              <button
-                onClick={handleSimularChoque}
-                className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-white transition-colors"
-              >
-                Simular Choque
-              </button>
+            {/* RENDERIZADO CONDICIONAL DEL ANALISTA */}
+            <div className="flex flex-wrap items-center gap-3">
+              {puedeSimularFallas && (
+                <>
+                  <button onClick={handleSimularAnomalia} className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-white transition-colors text-sm">
+                    Simular Anomalía de Sello
+                  </button>
+                  <button onClick={handleSimularChoque} className="px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg text-white transition-colors text-sm">
+                    Simular Choque
+                  </button>
+                </>
+              )}
+              
               {activo.estado_actual === 'EN_DISPUTA' && (
-                <button
-                  onClick={handleResolverDisputa}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition-colors"
-                >
-                  Resolver Disputa (Liberar Activo)
+                <button onClick={handleResolverDisputa} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white transition-colors font-bold shadow-lg shadow-emerald-500/30">
+                  Resolver Disputa (Override Manual)
                 </button>
               )}
             </div>
           </div>
 
+          {/* Mensajes visuales de estado */}
           {activo.estado_actual === 'EN_DISPUTA' && (
-            <div className="mt-4 rounded-lg p-4 bg-red-900/60 border border-red-500 text-red-100">
-              <strong>🚨 Disputa abierta:</strong> {activo.comentario_incidencia}
+            <div className="mt-6 rounded-lg p-4 bg-red-900/60 border border-red-500 text-red-100">
+              <strong>🚨 Disputa abierta y Flujo Detenido:</strong> {activo.comentario_incidencia}
+            </div>
+          )}
+
+          {['SOLICITADO', 'ENTREGADO'].includes(activo.estado_actual) && (
+            <div className="mt-6 rounded-lg p-8 border border-dashed border-white/20 bg-white/5 text-center">
+              <span className="text-3xl block mb-2">✅</span>
+              <h3 className="text-lg font-medium text-gray-300">Sin incidencias activas</h3>
+              <p className="text-sm text-gray-500 mt-1">El flujo operativo del activo se encuentra en parámetros normales. No se requiere intervención del analista.</p>
             </div>
           )}
         </div>
@@ -457,7 +461,7 @@ function App() {
     )
   }
 
-  return (
+return (
     <>
       {!simulacionIniciada ? (
         renderBienvenida()
@@ -472,6 +476,23 @@ function App() {
 
           <main className="relative z-10 pt-24 px-6 md:pl-80 pb-12">
             {renderTabContent()}
+            
+            {/* 🛠 DEVTOOLS FLOTANTE PARA LA DEMOSTRACIÓN */}
+            <div className="fixed bottom-6 right-6 z-50 bg-slate-900/90 border border-purple-500/50 p-4 rounded-xl shadow-[0_0_20px_rgba(168,85,247,0.2)] backdrop-blur-md w-64">
+               <h3 className="text-purple-400 text-[10px] font-bold mb-2 tracking-widest uppercase">🛠 Override / Demo</h3>
+               <select
+                 className="w-full bg-slate-800 border border-slate-700 text-white text-xs p-2 rounded focus:outline-none focus:border-purple-500"
+                 value={activo.estado_actual}
+                 onChange={(e) => updateActivo({ estado_actual: e.target.value as any }, 'info')}
+               >
+                  <option value="SOLICITADO">1. SOLICITADO</option>
+                  <option value="EN_TRANSITO">2. EN_TRANSITO</option>
+                  <option value="EN_ACOPIO">3. EN_ACOPIO</option>
+                  <option value="ENTREGADO">4. ENTREGADO</option>
+                  <option value="EN_DISPUTA" className="text-rose-400 font-bold">🚨 EN_DISPUTA</option>
+               </select>
+            </div>
+
           </main>
         </div>
       )}
