@@ -115,6 +115,48 @@ def list_packages():
         return jsonify({'error': f'Error al obtener paquetes: {str(e)}'}), 500
 
 
+@packages_bp.route('/my-packages', methods=['GET'])
+@jwt_required()
+def get_my_packages():
+    """
+    Obtiene el historial de todos los paquetes enviados por el usuario autenticado
+    
+    Extrae el RUT del usuario desde el token JWT y devuelve todos los paquetes
+    donde ese usuario es el remitente.
+    
+    Returns:
+        JSON con lista de paquetes del usuario incluyendo:
+        - id: ID del paquete
+        - nombre: Nombre del paquete
+        - descripcion: Descripción del contenido
+        - direccion_origen: Dirección de origen
+        - direccion_destino: Dirección de destino
+        - estado_actual: Estado actual del envío
+        - integridad: Estado físico del paquete
+        - created_at: Fecha de creación
+        - updated_at: Fecha de última actualización
+    """
+    try:
+        claims = get_jwt()
+        rut_usuario = claims.get('rut')
+        
+        if not rut_usuario:
+            return jsonify({'error': 'Token inválido'}), 401
+        
+        # Obtener todos los paquetes del usuario remitente
+        packages = Asset.query.filter_by(rut_remitente=rut_usuario).all()
+        
+        return jsonify({
+            'success': True,
+            'rut_usuario': rut_usuario,
+            'total': len(packages),
+            'packages': [pkg.to_dict() for pkg in packages]
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener historial de paquetes: {str(e)}'}), 500
+
+
 @packages_bp.route('/<int:asset_id>', methods=['GET'])
 @jwt_required()
 def get_package(asset_id):
