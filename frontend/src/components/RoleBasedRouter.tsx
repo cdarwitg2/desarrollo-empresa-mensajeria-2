@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { Dashboard } from './Dashboard';
 import { ClientDashboard } from './ClientDashboard';
+import { WorkerDashboard } from './WorkerDashboard';
 
 export const RoleBasedRouter: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -29,12 +30,13 @@ export const RoleBasedRouter: React.FC = () => {
     return <ClientDashboard />;
   }
 
-  // Si tiene otros roles (admin, operador, analista), mostrar Dashboard
-  if (
-    user.roles.includes('administrador') ||
-    user.roles.includes('operador') ||
-    user.roles.includes('analista')
-  ) {
+  // Si tiene roles de operador o analista, mostrar WorkerDashboard
+  if (user.roles.includes('operador') || user.roles.includes('analista')) {
+    return <WorkerDashboard />;
+  }
+
+  // Si tiene rol de administrador, mostrar Dashboard con tabs
+  if (user.roles.includes('administrador')) {
     return <Dashboard />;
   }
 

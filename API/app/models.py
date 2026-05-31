@@ -121,6 +121,7 @@ class Asset(db.Model):
     direccion_origen = db.Column(db.String(500), nullable=False)
     direccion_destino = db.Column(db.String(500), nullable=False)
     estado_actual = db.Column(db.String(50), nullable=False, default='SOLICITADO')
+    integridad = db.Column(db.String(50), nullable=False, default='Intacto')
     rut_remitente = db.Column(db.String(12), db.ForeignKey('usuarios.rut'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -145,7 +146,54 @@ class Asset(db.Model):
             'direccion_origen': self.direccion_origen,
             'direccion_destino': self.direccion_destino,
             'estado_actual': self.estado_actual,
+            'integridad': self.integridad,
             'rut_remitente': self.rut_remitente,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class CustodyLog(db.Model):
+    """
+    Modelo de Registro de Custodia (Historial Inmutable de Cambios)
+    
+    Attributes:
+        id (int): Identificador único del registro
+        id_activo (int): ID del Asset relacionado (Llave Foránea)
+        rut_responsable (str): RUT del usuario que realizó la acción (Llave Foránea)
+        estado_instante (str): Estado que adquirió el asset en este momento
+        timestamp (datetime): Fecha y hora del registro
+        tipo_alerta (str): Tipo de alerta (estándar, crítico, resolución)
+    """
+    
+    __tablename__ = 'custody_logs'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_activo = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False)
+    rut_responsable = db.Column(db.String(12), db.ForeignKey('usuarios.rut'), nullable=False)
+    estado_instante = db.Column(db.String(100), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    tipo_alerta = db.Column(db.String(20), nullable=False, default='estándar')
+    
+    # Relaciones
+    asset = db.relationship('Asset', backref=db.backref('custody_logs', lazy=True))
+    usuario = db.relationship('Usuario', backref=db.backref('custody_logs', lazy=True))
+    
+    def __repr__(self):
+        return f'<CustodyLog {self.id} - Asset {self.id_activo} - {self.estado_instante}>'
+    
+    def to_dict(self):
+        """
+        Convierte el registro de custodia a diccionario
+        
+        Returns:
+            dict: Representación del registro
+        """
+        return {
+            'id': self.id,
+            'id_activo': self.id_activo,
+            'rut_responsable': self.rut_responsable,
+            'estado_instante': self.estado_instante,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'tipo_alerta': self.tipo_alerta
         }

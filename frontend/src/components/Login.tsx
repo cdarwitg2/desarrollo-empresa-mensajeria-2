@@ -10,6 +10,28 @@ export const Login: React.FC = () => {
   const { login, isLoading } = useAuth();
   const navigate = useNavigate();
 
+  const formatRUT = (value: string) => {
+    // Solo permite dígitos
+    const cleaned = value.replace(/\D/g, '');
+    
+    // Limita a máximo 9 dígitos
+    if (cleaned.length > 9) {
+      return cleaned.slice(0, 9);
+    }
+    
+    // Si tiene 8 o más dígitos, agrega el guión
+    if (cleaned.length > 8) {
+      return cleaned.slice(0, 8) + '-' + cleaned.slice(8);
+    }
+    
+    return cleaned;
+  };
+
+  const handleRutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatRUT(e.target.value);
+    setRut(formatted);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -52,7 +74,7 @@ export const Login: React.FC = () => {
                   id="rut"
                   type="text"
                   value={rut}
-                  onChange={(e) => setRut(e.target.value)}
+                  onChange={handleRutChange}
                   placeholder="12345678-9"
                   disabled={isLoading}
                   className="w-full bg-slate-900/50 border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all disabled:opacity-50"
