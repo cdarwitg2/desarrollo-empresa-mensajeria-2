@@ -18,6 +18,12 @@ def init_db():
         # Crear usuarios de prueba si no existen
         usuarios_prueba = [
             {
+                'rut': '11111111-1',
+                'nombre_completo': 'Roberto Cliente',
+                'password': 'password000',
+                'roles': ['usuario']
+            },
+            {
                 'rut': '12345678-9',
                 'nombre_completo': 'Juan Pérez',
                 'password': 'password123',
@@ -54,9 +60,10 @@ def init_db():
         db.session.commit()
         print("\n✓ Base de datos inicializada correctamente")
         print("\nUsuarios de prueba disponibles:")
-        print("  1. RUT: 12345678-9, Pass: password123 (roles: operador, analista)")
-        print("  2. RUT: 98765432-1, Pass: password456 (roles: administrador)")
-        print("  3. RUT: 55555555-5, Pass: password789 (roles: operador)")
+        print("  1. RUT: 11111111-1, Pass: password000 (rol: usuario - CLIENTE)")
+        print("  2. RUT: 12345678-9, Pass: password123 (roles: operador, analista)")
+        print("  3. RUT: 98765432-1, Pass: password456 (rol: administrador)")
+        print("  4. RUT: 55555555-5, Pass: password789 (rol: operador)")
 
 if __name__ == '__main__':
     init_db()
