@@ -1,4 +1,6 @@
 import React, { useState } from 'react'
+import { LogOut, User, Menu, X } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
 type TabType = 'seguimiento' | 'operador' | 'analista'
 
@@ -9,12 +11,23 @@ interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const { usuario, logout, hasRole } = useAuth()
 
-  const navItems: Array<{ id: TabType; label: string; icon: string }> = [
-    { id: 'seguimiento', label: 'Seguimiento Público', icon: '📍' },
-    { id: 'operador', label: 'Portal Operador', icon: '🚚' },
-    { id: 'analista', label: 'Panel de Analista', icon: '📊' },
+  const navItems: Array<{ id: TabType; label: string; icon: string; role: string }> = [
+    { id: 'seguimiento', label: 'Seguimiento Público', icon: '📍', role: 'operador' },
+    { id: 'operador', label: 'Portal Operador', icon: '🚚', role: 'operador' },
+    { id: 'analista', label: 'Panel de Analista', icon: '📊', role: 'analista' },
   ]
+
+  // Filtrar tabs según roles
+  const availableTabs = usuario && hasRole('administrador')
+    ? navItems
+    : navItems.filter((item) => usuario && hasRole(item.role))
+
+  const handleLogout = () => {
+    logout()
+    setIsMobileMenuOpen(false)
+  }
 
   return (
     <>
@@ -35,7 +48,7 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
 
           {/* Navigation Items */}
           <div className="flex-1 px-4 py-6 space-y-2">
-            {navItems.map((item) => (
+            {availableTabs.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
@@ -54,12 +67,31 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
             ))}
           </div>
 
-          {/* Footer */}
-          <div className="px-6 py-6 border-t border-white/10">
-            <div className="text-xs text-gray-500 space-y-2">
-              <p>Packet Tracker</p>
-              <p>v1.0.0</p>
-            </div>
+          {/* Usuario y Logout */}
+          <div className="px-6 py-6 border-t border-white/10 space-y-4">
+            {usuario && (
+              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                    <User className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white font-medium text-sm truncate">{usuario.nombre}</p>
+                    <p className="text-gray-400 text-xs truncate">{usuario.rut}</p>
+                  </div>
+                </div>
+                <p className="text-gray-400 text-xs mb-3">
+                  Roles: <span className="text-blue-400">{usuario.roles.join(', ')}</span>
+                </p>
+              </div>
+            )}
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all font-medium text-sm"
+            >
+              <LogOut className="w-4 h-4" />
+              Cerrar Sesión
+            </button>
           </div>
         </div>
       </nav>
@@ -79,26 +111,18 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d={isMobileMenuOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'}
-              />
-            </svg>
+            {isMobileMenuOpen ? (
+              <X className="w-6 h-6 text-white" />
+            ) : (
+              <Menu className="w-6 h-6 text-white" />
+            )}
           </button>
         </div>
 
         {/* Mobile Menu Dropdown */}
         {isMobileMenuOpen && (
-          <div className="px-4 py-4 space-y-2 border-t border-white/10">
-            {navItems.map((item) => (
+          <div className="px-4 py-4 space-y-2 border-t border-white/10 bg-slate-900/90">
+            {availableTabs.map((item) => (
               <button
                 key={item.id}
                 onClick={() => {
@@ -115,6 +139,25 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                 <span className="font-medium text-sm">{item.label}</span>
               </button>
             ))}
+
+            {usuario && (
+              <>
+                <div className="my-4 px-4 py-3 bg-white/5 border border-white/10 rounded-lg">
+                  <p className="text-white font-medium text-sm mb-1">{usuario.nombre}</p>
+                  <p className="text-gray-400 text-xs mb-2">{usuario.rut}</p>
+                  <p className="text-gray-400 text-xs">
+                    Roles: <span className="text-blue-400">{usuario.roles.join(', ')}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all font-medium text-sm"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Cerrar Sesión
+                </button>
+              </>
+            )}
           </div>
         )}
       </nav>
