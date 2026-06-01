@@ -35,8 +35,10 @@ def create_app(config_name='development'):
     # Registrar blueprints
     from app.auth import auth_bp
     from app.packages import packages_bp
+    from app.admin import admin_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(packages_bp)
+    app.register_blueprint(admin_bp)
     
     # Crear tablas
     with app.app_context():

@@ -30,6 +30,7 @@ class Usuario(db.Model):
     activo = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    ultima_conexion = db.Column(db.DateTime, nullable=True)  # Fecha y hora del último login exitoso
     
     def __repr__(self):
         return f'<Usuario {self.rut} - {self.nombre_completo}>'
@@ -92,6 +93,7 @@ class Usuario(db.Model):
             'nombre_completo': self.nombre_completo,
             'roles': self.get_roles_list(),
             'activo': self.activo,
+            'ultima_conexion': self.ultima_conexion.isoformat() if self.ultima_conexion else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

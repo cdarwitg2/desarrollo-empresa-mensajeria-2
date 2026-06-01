@@ -25,11 +25,20 @@ export const ClientDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<TabType>('request');
+  // Restaurar último tab activo desde sessionStorage
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const saved = sessionStorage.getItem('clientDashboardTab');
+    return (saved as TabType) || 'request';
+  });
   const [packages, setPackages] = useState<ClientPackage[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<ClientPackage | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Guardar el tab activo en sessionStorage cuando cambia
+  useEffect(() => {
+    sessionStorage.setItem('clientDashboardTab', activeTab);
+  }, [activeTab]);
 
   const handleLogout = () => {
     logout();

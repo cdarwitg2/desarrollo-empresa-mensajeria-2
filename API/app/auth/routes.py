@@ -7,6 +7,7 @@ from flask_jwt_extended import create_access_token
 from app.auth import auth_bp
 from app.models import Usuario
 from app import db
+from datetime import datetime
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -74,6 +75,10 @@ def login():
         
         # Generar el token JWT
         access_token = create_access_token(identity=usuario.rut, additional_claims=payload)
+        
+        # Actualizar última conexión
+        usuario.ultima_conexion = datetime.utcnow()
+        db.session.commit()
         
         # Respuesta exitosa
         return jsonify({

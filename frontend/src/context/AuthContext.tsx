@@ -6,7 +6,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const storedToken = sessionStorage.getItem('token');
@@ -16,6 +16,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
     }
+    
+    setIsLoading(false);
   }, []);
 
   const login = async (rut: string, password: string) => {

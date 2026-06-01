@@ -19,12 +19,16 @@ export const Login: React.FC = () => {
       return cleaned.slice(0, 9);
     }
     
-    // Si tiene 8 o más dígitos, agrega el guión
-    if (cleaned.length > 8) {
-      return cleaned.slice(0, 8) + '-' + cleaned.slice(8);
+    // Formatea como XX.XXX.XXX-X
+    if (cleaned.length <= 2) {
+      return cleaned;
+    } else if (cleaned.length <= 5) {
+      return cleaned.slice(0, 2) + '.' + cleaned.slice(2);
+    } else if (cleaned.length <= 8) {
+      return cleaned.slice(0, 2) + '.' + cleaned.slice(2, 5) + '.' + cleaned.slice(5);
+    } else {
+      return cleaned.slice(0, 2) + '.' + cleaned.slice(2, 5) + '.' + cleaned.slice(5, 8) + '-' + cleaned.slice(8);
     }
-    
-    return cleaned;
   };
 
   const handleRutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,7 +46,9 @@ export const Login: React.FC = () => {
     }
 
     try {
-      await login(rut, password);
+      // Limpia los puntos del RUT antes de enviar al backend
+      const cleanRut = rut.replace(/\./g, '');
+      await login(cleanRut, password);
       navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error en el login');
@@ -75,7 +81,7 @@ export const Login: React.FC = () => {
                   type="text"
                   value={rut}
                   onChange={handleRutChange}
-                  placeholder="12345678-9"
+                  placeholder="12.345.678-9"
                   disabled={isLoading}
                   className="w-full bg-slate-900/50 border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all disabled:opacity-50"
                 />
@@ -133,9 +139,10 @@ export const Login: React.FC = () => {
         <div className="mt-6 bg-slate-900/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-4">
           <p className="text-xs font-semibold text-slate-300 mb-2">Credenciales de Prueba:</p>
           <div className="space-y-1 text-xs text-slate-400">
-            <p>• <span className="text-slate-300">12345678-9</span> / password123 (operador)</p>
-            <p>• <span className="text-slate-300">98765432-1</span> / password456 (admin)</p>
-            <p>• <span className="text-slate-300">55555555-5</span> / password789 (operador)</p>
+              <p>• <span className="text-slate-300">12.345.678-9</span> / password123 (operador)</p>
+              <p>• <span className="text-slate-300">98.765.432-1</span> / password456 (admin)</p>
+              <p>• <span className="text-slate-300">55.555.555-5</span> / password789 (operador)</p>
+              <p>• <span className="text-slate-300">11.111.111-1</span> / password000 (cliente)</p>
           </div>
         </div>
       </div>
