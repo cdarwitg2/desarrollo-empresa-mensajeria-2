@@ -195,12 +195,12 @@ def get_package(asset_id):
 @jwt_required()
 def get_pending_packages():
     """
-    Obtiene todos los paquetes en estado SOLICITADO
+    Obtiene todos los paquetes excepto los ENTREGADO
     
     Requiere rol de trabajador (operador, analista o administrador)
     
     Returns:
-        JSON con lista de paquetes pendientes
+        JSON con lista de paquetes activos (no entregados)
     """
     try:
         claims = get_jwt()
@@ -209,8 +209,8 @@ def get_pending_packages():
         if not rut_responsable:
             return jsonify({'error': 'Token inválido'}), 401
         
-        # Obtener todos los paquetes con estado SOLICITADO
-        pending_packages = Asset.query.filter_by(estado_actual='SOLICITADO').all()
+        # Obtener todos los paquetes excepto los ENTREGADO
+        pending_packages = Asset.query.filter(Asset.estado_actual != 'ENTREGADO').all()
         
         return jsonify({
             'success': True,
@@ -220,6 +220,49 @@ def get_pending_packages():
     
     except Exception as e:
         return jsonify({'error': f'Error al obtener paquetes pendientes: {str(e)}'}), 500
+
+
+@packages_bp.route('/filter', methods=['GET'])
+@jwt_required()
+def filter_packages():
+    """
+    Filtra paquetes por estado
+    
+    Query Parameters:
+        estado (str, optional): Estado a filtrar (SOLICITADO, EN_TRANSITO, EN_ACOPIO, ENTREGADO, EN_DISPUTA)
+                                Si no se proporciona, devuelve todos los paquetes
+    
+    Requiere rol de trabajador (operador, analista o administrador)
+    
+    Returns:
+        JSON con lista de paquetes filtrados
+    """
+    try:
+        claims = get_jwt()
+        rut_responsable = claims.get('rut')
+        
+        if not rut_responsable:
+            return jsonify({'error': 'Token inválido'}), 401
+        
+        # Obtener parámetro de estado
+        estado = request.args.get('estado', '').strip()
+        
+        if estado:
+            # Filtrar por estado específico
+            packages = Asset.query.filter_by(estado_actual=estado).all()
+        else:
+            # Si no hay filtro, devolver todos los paquetes
+            packages = Asset.query.all()
+        
+        return jsonify({
+            'success': True,
+            'filter': estado if estado else 'todos',
+            'total': len(packages),
+            'packages': [pkg.to_dict() for pkg in packages]
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al filtrar paquetes: {str(e)}'}), 500
 
 
 @packages_bp.route('/update-status', methods=['POST'])

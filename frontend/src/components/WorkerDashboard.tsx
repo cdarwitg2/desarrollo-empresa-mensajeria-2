@@ -37,6 +37,7 @@ export const WorkerDashboard: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState<string>('all');
 
   const handleLogout = () => {
     logout();
@@ -47,6 +48,11 @@ export const WorkerDashboard: React.FC = () => {
   useEffect(() => {
     fetchPendingPackages();
   }, []);
+
+  // Cargar paquetes cuando cambia el filtro
+  useEffect(() => {
+    fetchPackagesByFilter();
+  }, [selectedFilter]);
 
   // Cargar logs cuando se selecciona un paquete
   useEffect(() => {
@@ -63,6 +69,36 @@ export const WorkerDashboard: React.FC = () => {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
       const response = await fetch(`${apiUrl}/api/packages/pending`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) throw new Error('Error al cargar paquetes');
+
+      const data = await response.json();
+      setPackages(data.packages || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchPackagesByFilter = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+      setSelectedPackage(null);
+      const token = sessionStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+      let url = `${apiUrl}/api/packages/filter`;
+      if (selectedFilter !== 'all') {
+        url += `?estado=${selectedFilter}`;
+      }
+
+      const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -263,13 +299,77 @@ export const WorkerDashboard: React.FC = () => {
               Solicitudes Pendientes
             </h3>
 
+            {/* Filtro de Estados */}
+            <div className="mb-4 flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedFilter('all')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                  selectedFilter === 'all'
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setSelectedFilter('SOLICITADO')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                  selectedFilter === 'SOLICITADO'
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                Solicitado
+              </button>
+              <button
+                onClick={() => setSelectedFilter('EN_TRANSITO')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                  selectedFilter === 'EN_TRANSITO'
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                En Tránsito
+              </button>
+              <button
+                onClick={() => setSelectedFilter('EN_ACOPIO')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                  selectedFilter === 'EN_ACOPIO'
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                En Acopio
+              </button>
+              <button
+                onClick={() => setSelectedFilter('ENTREGADO')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                  selectedFilter === 'ENTREGADO'
+                    ? 'bg-green-500/20 border-green-500/50 text-green-300'
+                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                Entregado
+              </button>
+              <button
+                onClick={() => setSelectedFilter('EN_DISPUTA')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                  selectedFilter === 'EN_DISPUTA'
+                    ? 'bg-red-500/20 border-red-500/50 text-red-300'
+                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                Disputa
+              </button>
+            </div>
+
             {isLoading && packages.length === 0 ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
               </div>
             ) : packages.length === 0 ? (
               <div className="text-center py-8 text-slate-400">
-                <p>No hay paquetes pendientes</p>
+                <p>No hay paquetes en esta categoría</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto">
