@@ -4,17 +4,8 @@ import { LogOut, Package, Send, ListChecks } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ShipmentForm } from './ShipmentForm';
 
-interface ClientPackage {
-  id: number;
-  nombre: string;
-  descripcion: string;
-  direccion_origen: string;
-  direccion_destino: string;
-  estado_actual: string;
-  integridad: string;
-  created_at: string;
-  updated_at: string;
-}
+import { api } from '../services/api';
+import { Package as ClientPackage } from '../types';
 
 type TabType = 'request' | 'tracking';
 type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'ENTREGADO' | 'EN_DISPUTA';
@@ -58,18 +49,7 @@ export const ClientDashboard: React.FC = () => {
       setError('');
       setSelectedPackage(null);
       
-      const token = sessionStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-      const response = await fetch(`${apiUrl}/api/packages/my-packages`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar los paquetes');
-
-      const data = await response.json();
+      const data = await api.get('/api/packages/my-packages');
       setPackages(data.packages || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');

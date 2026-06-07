@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { Dashboard } from './Dashboard';
 import { ClientDashboard } from './ClientDashboard';
-import { WorkerDashboard } from './WorkerDashboard';
+import { WarehouseDashboard } from './WarehouseDashboard';
+import { DriverDashboard } from './DriverDashboard';
 
 export const RoleBasedRouter: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -30,9 +31,14 @@ export const RoleBasedRouter: React.FC = () => {
     return <ClientDashboard />;
   }
 
-  // Si tiene roles de operador o analista, mostrar WorkerDashboard
-  if (user.roles.includes('operador') || user.roles.includes('analista')) {
-    return <WorkerDashboard />;
+  // Si tiene rol de mensajero, mostrar DriverDashboard
+  if (user.roles.includes('mensajero')) {
+    return <DriverDashboard />;
+  }
+
+  // Si tiene rol de acopio o analista, mostrar WarehouseDashboard
+  if (user.roles.includes('acopio') || user.roles.includes('analista') || user.roles.includes('operador')) {
+    return <WarehouseDashboard />;
   }
 
   // Si tiene rol de administrador, mostrar Dashboard con tabs

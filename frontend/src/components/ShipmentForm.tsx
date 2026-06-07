@@ -1,20 +1,15 @@
 import React, { useState } from 'react';
-import { Package, AlertCircle, Loader } from 'lucide-react';
+import { Package, AlertCircle } from 'lucide-react';
 import { PaymentModal } from './PaymentModal';
 
-interface ShipmentFormData {
-  nombre: string;
-  descripcion: string;
-  direccion_origen: string;
-  direccion_destino: string;
-}
+import { ShipmentData } from '../types';
 
 interface ShipmentFormProps {
   onSuccess?: () => void;
 }
 
 export const ShipmentForm: React.FC<ShipmentFormProps> = ({ onSuccess }) => {
-  const [formData, setFormData] = useState<ShipmentFormData>({
+  const [formData, setFormData] = useState<ShipmentData>({
     nombre: '',
     descripcion: '',
     direccion_origen: '',
@@ -22,7 +17,7 @@ export const ShipmentForm: React.FC<ShipmentFormProps> = ({ onSuccess }) => {
   });
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [errors, setErrors] = useState<Partial<ShipmentFormData>>({});
+  const [errors, setErrors] = useState<Partial<ShipmentData>>({});
   const [successMessage, setSuccessMessage] = useState('');
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -32,7 +27,7 @@ export const ShipmentForm: React.FC<ShipmentFormProps> = ({ onSuccess }) => {
       [name]: value,
     }));
     // Limpiar error del campo cuando el usuario empieza a escribir
-    if (errors[name as keyof ShipmentFormData]) {
+    if (errors[name as keyof ShipmentData]) {
       setErrors((prev) => ({
         ...prev,
         [name]: '',
@@ -41,7 +36,7 @@ export const ShipmentForm: React.FC<ShipmentFormProps> = ({ onSuccess }) => {
   };
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<ShipmentFormData> = {};
+    const newErrors: Partial<ShipmentData> = {};
 
     if (!formData.nombre.trim()) {
       newErrors.nombre = 'El nombre del paquete es obligatorio';

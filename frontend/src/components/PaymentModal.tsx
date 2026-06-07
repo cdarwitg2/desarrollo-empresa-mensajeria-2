@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
 import { X, CreditCard, Loader, CheckCircle } from 'lucide-react';
 
-interface ShipmentData {
-  nombre: string;
-  descripcion: string;
-  direccion_origen: string;
-  direccion_destino: string;
-}
+import { api } from '../services/api';
+import { ShipmentData } from '../types';
 
 interface PaymentModalProps {
   shipmentData: ShipmentData;
@@ -28,31 +24,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setError('');
 
     try {
-      // Obtener el token del sessionStorage
-      const token = sessionStorage.getItem('token');
-
-      if (!token) {
-        throw new Error('No autenticado. Por favor inicia sesión nuevamente.');
-      }
-
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-      // Realizar POST a /api/packages/create
-      const response = await fetch(`${apiUrl}/api/packages/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(shipmentData),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Error al crear el paquete');
-      }
-
-      const data = await response.json();
+      await api.post('/api/packages/create', shipmentData);
 
       // Mostrar estado de éxito brevemente
       setIsSuccess(true);

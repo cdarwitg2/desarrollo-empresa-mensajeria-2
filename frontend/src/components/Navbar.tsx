@@ -11,7 +11,7 @@ interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const { usuario, logout, hasRole } = useAuth()
+  const { user, logout, hasRole } = useAuth()
 
   const navItems: Array<{ id: TabType; label: string; icon: string; role: string }> = [
     { id: 'seguimiento', label: 'Seguimiento Público', icon: '📍', role: 'operador' },
@@ -20,9 +20,9 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
   ]
 
   // Filtrar tabs según roles
-  const availableTabs = usuario && hasRole('administrador')
+  const availableTabs = user && hasRole('administrador')
     ? navItems
-    : navItems.filter((item) => usuario && hasRole(item.role))
+    : navItems.filter((item) => user && hasRole(item.role))
 
   const handleLogout = () => {
     logout()
@@ -69,19 +69,19 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
 
           {/* Usuario y Logout */}
           <div className="px-6 py-6 border-t border-white/10 space-y-4">
-            {usuario && (
+            {user && (
               <div className="bg-white/5 border border-white/10 rounded-lg p-4">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
                     <User className="w-6 h-6 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-white font-medium text-sm truncate">{usuario.nombre}</p>
-                    <p className="text-gray-400 text-xs truncate">{usuario.rut}</p>
+                    <p className="text-white font-medium text-sm truncate">{user.nombre}</p>
+                    <p className="text-gray-400 text-xs truncate">{user.rut}</p>
                   </div>
                 </div>
                 <p className="text-gray-400 text-xs mb-3">
-                  Roles: <span className="text-blue-400">{usuario.roles.join(', ')}</span>
+                  Roles: <span className="text-blue-400">{user.roles.join(', ')}</span>
                 </p>
               </div>
             )}
@@ -140,13 +140,13 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               </button>
             ))}
 
-            {usuario && (
+            {user && (
               <>
                 <div className="my-4 px-4 py-3 bg-white/5 border border-white/10 rounded-lg">
-                  <p className="text-white font-medium text-sm mb-1">{usuario.nombre}</p>
-                  <p className="text-gray-400 text-xs mb-2">{usuario.rut}</p>
+                  <p className="text-white font-medium text-sm mb-1">{user.nombre}</p>
+                  <p className="text-gray-400 text-xs mb-2">{user.rut}</p>
                   <p className="text-gray-400 text-xs">
-                    Roles: <span className="text-blue-400">{usuario.roles.join(', ')}</span>
+                    Roles: <span className="text-blue-400">{user.roles.join(', ')}</span>
                   </p>
                 </div>
                 <button

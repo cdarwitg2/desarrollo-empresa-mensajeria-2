@@ -2,14 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, Shield, User, BarChart3, Users, Edit2, X, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-interface AdminUser {
-  rut: string;
-  nombre_completo: string;
-  roles: string[];
-  activo: boolean;
-  ultima_conexion: string | null;
-}
+import { api } from '../services/api';
+import { User as AdminUser } from '../types';
 
 interface NewUserForm {
   rut: string;
@@ -105,18 +99,7 @@ export const Dashboard: React.FC = () => {
     try {
       setIsLoadingUsers(true);
       setError('');
-      const token = sessionStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-      const response = await fetch(`${apiUrl}/api/admin/users`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar usuarios');
-
-      const data = await response.json();
+      const data = await api.get('/api/admin/users');
       setUsers(data.users || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -140,23 +123,9 @@ export const Dashboard: React.FC = () => {
 
     try {
       setIsSaving(true);
-      const token = sessionStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-      const response = await fetch(`${apiUrl}/api/admin/users/${editingUser.rut}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          roles: [selectedRole],
-        }),
+      const data = await api.put(`/api/admin/users/${editingUser.rut}`, {
+        roles: [selectedRole],
       });
-
-      if (!response.ok) throw new Error('Error al actualizar usuario');
-
-      const data = await response.json();
       
       // Actualizar la lista local
       setUsers(users.map(u => u.rut === editingUser.rut ? data.user : u));
@@ -197,29 +166,13 @@ export const Dashboard: React.FC = () => {
 
     try {
       setIsSaving(true);
-      const token = sessionStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-      const response = await fetch(`${apiUrl}/api/admin/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          rut: newUserForm.rut,
-          nombre_completo: newUserForm.nombre_completo,
-          password: newUserForm.password,
-          roles: creatingUserType === 'cliente' ? ['usuario'] : [newUserForm.rol],
-        }),
+      const data = await api.post('/api/admin/users', {
+        rut: newUserForm.rut,
+        nombre_completo: newUserForm.nombre_completo,
+        password: newUserForm.password,
+        roles: creatingUserType === 'cliente' ? ['usuario'] : [newUserForm.rol],
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Error al crear usuario');
-      }
-
-      const data = await response.json();
       setUsers([...users, data.user]);
       handleCloseCreateModal();
     } catch (err) {
@@ -234,17 +187,7 @@ export const Dashboard: React.FC = () => {
 
     try {
       setIsDeleting(true);
-      const token = sessionStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-      const response = await fetch(`${apiUrl}/api/admin/users/${deletingUser.rut}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Error al eliminar usuario');
+      await api.delete(`/api/admin/users/${deletingUser.rut}`);
 
       setUsers(users.filter(u => u.rut !== deletingUser.rut));
       setDeletingUser(null);

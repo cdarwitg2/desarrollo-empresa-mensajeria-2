@@ -3,32 +3,18 @@ import { useAuth } from '../context/AuthContext';
 import { LogOut, Play, AlertTriangle, RotateCcw, Zap, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-interface Package {
-  id: number;
-  nombre: string;
-  descripcion: string;
-  direccion_origen: string;
-  direccion_destino: string;
-  estado_actual: string;
-  integridad: string;
-  rut_remitente: string;
-  created_at: string;
-}
-
-interface LogEntry {
-  id: number;
-  id_activo: number;
-  rut_responsable: string;
-  estado_instante: string;
-  timestamp: string;
-  tipo_alerta: string;
-}
+import { api, updateActivoEstado } from '../services/api';
+import { Package, LogEntry } from '../types';
 
 type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'ENTREGADO' | 'EN_DISPUTA';
 
+const normalizeState = (state: string): StateType => {
+  return state.toUpperCase().replace('Á', 'A').replace('Ó', 'O').replace(' ', '_') as StateType;
+};
+
 const STATES_PIPELINE: StateType[] = ['SOLICITADO', 'EN_TRANSITO', 'EN_ACOPIO', 'ENTREGADO'];
 
-export const WorkerDashboard: React.FC = () => {
+export const WarehouseDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -38,6 +24,7 @@ export const WorkerDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [contingencyTokenInput, setContingencyTokenInput] = useState('');
 
   const handleLogout = () => {
     logout();
@@ -65,18 +52,8 @@ export const WorkerDashboard: React.FC = () => {
     try {
       setIsLoading(true);
       setError('');
-      const token = sessionStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-      const response = await fetch(`${apiUrl}/api/packages/pending`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar paquetes');
-
-      const data = await response.json();
+      const data = await api.get('/api/packages/pending');
       setPackages(data.packages || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -90,23 +67,13 @@ export const WorkerDashboard: React.FC = () => {
       setIsLoading(true);
       setError('');
       setSelectedPackage(null);
-      const token = sessionStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-      let url = `${apiUrl}/api/packages/filter`;
+      let url = '/api/packages/filter';
       if (selectedFilter !== 'all') {
         url += `?estado=${selectedFilter}`;
       }
 
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Error al cargar paquetes');
-
-      const data = await response.json();
+      const data = await api.get(url);
       setPackages(data.packages || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -115,26 +82,21 @@ export const WorkerDashboard: React.FC = () => {
     }
   };
 
-  const fetchPackageLogs = async (packageId: number) => {
+  const fetchPackageLogs = async (packageId: string) => {
     try {
       setIsLoading(true);
-      const token = sessionStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-      const response = await fetch(`${apiUrl}/api/packages/${packageId}/logs`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        // Si el endpoint no existe aún, mostrar vacío
-        setLogs([]);
-        return;
+      try {
+        const data = await api.get(`/api/packages/${packageId}/logs`);
+        setLogs(data.logs || []);
+      } catch (err: any) {
+        // Si el endpoint no existe aún o da 404
+        if (err.status === 404) {
+          setLogs([]);
+        } else {
+          throw err;
+        }
       }
-
-      const data = await response.json();
-      setLogs(data.logs || []);
     } catch (err) {
       console.error('Error al cargar logs:', err);
       setLogs([]);
@@ -148,33 +110,12 @@ export const WorkerDashboard: React.FC = () => {
 
     try {
       setIsLoading(true);
-      const token = sessionStorage.getItem('token');
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-      const payload: any = {
-        id_activo: selectedPackage.id,
-        nuevo_estado: newStatus,
-      };
-
-      if (integridad) {
-        payload.integridad = integridad;
-      }
-
-      const response = await fetch(`${apiUrl}/api/packages/update-status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) throw new Error('Error al actualizar estado');
-
-      const data = await response.json();
+      const data = await updateActivoEstado(selectedPackage.id_activo, newStatus, integridad, contingencyTokenInput);
 
       // Actualizar paquete seleccionado
       setSelectedPackage(data.asset);
+      setContingencyTokenInput(''); // Clear on success
 
       // Agregar nuevo log al principio (más recientes primero)
       if (data.log) {
@@ -183,22 +124,18 @@ export const WorkerDashboard: React.FC = () => {
 
       // Recargar lista de pendientes
       await fetchPendingPackages();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } catch (err: any) {
+      if (err.status === 409) {
+        setError(err.message || 'Error de conflicto de transición de estado');
+      } else {
+        setError(err instanceof Error ? err.message : 'Error desconocido');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleOperatorAction = async () => {
-    if (!selectedPackage) return;
-
-    const currentStateIndex = STATES_PIPELINE.indexOf(selectedPackage.estado_actual as StateType);
-    if (currentStateIndex < STATES_PIPELINE.length - 1) {
-      const nextState = STATES_PIPELINE[currentStateIndex + 1];
-      await updatePackageStatus(nextState);
-    }
-  };
+  // handleOperatorAction is no longer used, we call updatePackageStatus directly with the selected state.
 
   const handleForceDispute = async () => {
     await updatePackageStatus('EN_DISPUTA');
@@ -211,7 +148,7 @@ export const WorkerDashboard: React.FC = () => {
       await updatePackageStatus('EN_DISPUTA');
     } else {
       // 90% probabilidad: integridad dañada
-      await updatePackageStatus(selectedPackage!.estado_actual as StateType, 'Un poco dañado');
+      await updatePackageStatus(normalizeState(selectedPackage!.estado_actual), 'Un poco dañado');
     }
   };
 
@@ -236,24 +173,28 @@ export const WorkerDashboard: React.FC = () => {
     }
   };
 
-  const getOperatorButtonLabel = (): string => {
-    if (!selectedPackage) return '';
-    switch (selectedPackage.estado_actual) {
+  const getAvailableTransitions = (currentState: string): { status: StateType, label: string }[] => {
+    const normalized = normalizeState(currentState);
+    switch (normalized) {
       case 'SOLICITADO':
-        return 'Iniciar Ruta';
+        return [{ status: 'EN_TRANSITO', label: 'Marcar En Tránsito' }];
       case 'EN_TRANSITO':
-        return 'Ingresar a Acopio';
+        return [
+          { status: 'EN_ACOPIO', label: 'Recibir en Acopio' },
+          { status: 'ENTREGADO', label: 'Marcar Entregado al Cliente' }
+        ];
       case 'EN_ACOPIO':
-        return 'Marcar Entregado';
-      case 'ENTREGADO':
-        return 'Completado';
+        return [
+          { status: 'EN_TRANSITO', label: 'Marcar En Tránsito' },
+          { status: 'ENTREGADO', label: 'Marcar Entregado al Cliente' }
+        ];
       default:
-        return 'Actualizar';
+        return [];
     }
   };
 
-  const isDisputeBlock = selectedPackage?.estado_actual === 'EN_DISPUTA';
-  const isCompleted = selectedPackage?.estado_actual === 'ENTREGADO';
+  const isDisputeBlock = selectedPackage && normalizeState(selectedPackage.estado_actual) === 'EN_DISPUTA';
+  const isCompleted = selectedPackage && normalizeState(selectedPackage.estado_actual) === 'ENTREGADO';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -432,9 +373,9 @@ export const WorkerDashboard: React.FC = () => {
                   </h4>
                   <div className="flex items-center justify-between">
                     {STATES_PIPELINE.map((state, idx) => {
-                      const isActive = selectedPackage.estado_actual === state;
-                      const isPassed =
-                        STATES_PIPELINE.indexOf(selectedPackage.estado_actual as StateType) > idx;
+                      const normalizedCurrent = normalizeState(selectedPackage.estado_actual);
+                      const isActive = normalizedCurrent === state;
+                      const isPassed = STATES_PIPELINE.indexOf(normalizedCurrent) > idx;
 
                       return (
                         <div key={state} className="flex items-center">
@@ -465,7 +406,7 @@ export const WorkerDashboard: React.FC = () => {
                     })}
                   </div>
 
-                  {selectedPackage.estado_actual === 'EN_DISPUTA' && (
+                  {normalizeState(selectedPackage.estado_actual) === 'EN_DISPUTA' && (
                     <div className="mt-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2">
                       <AlertTriangle className="w-5 h-5 text-red-400" />
                       <p className="text-red-400 text-sm">Paquete en DISPUTA - Flujo bloqueado</p>
@@ -476,20 +417,47 @@ export const WorkerDashboard: React.FC = () => {
                 {/* Controles del Operador */}
                 <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-xl p-6">
                   <h4 className="text-sm font-semibold text-slate-300 mb-4 uppercase">
-                    Controles del Operador
+                    Controles del Operador / Acopio
                   </h4>
-                  <button
-                    onClick={handleOperatorAction}
-                    disabled={isDisputeBlock || isCompleted || isLoading}
-                    className={`w-full px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
-                      isDisputeBlock || isCompleted
-                        ? 'bg-slate-800/50 border border-slate-700 text-slate-500 cursor-not-allowed opacity-50'
-                        : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white border border-green-500/50 hover:shadow-lg hover:shadow-green-500/50'
-                    }`}
-                  >
-                    <Play className="w-4 h-4" />
-                    {getOperatorButtonLabel()}
-                  </button>
+                  
+                  {getAvailableTransitions(selectedPackage.estado_actual).length > 0 ? (
+                    <div className="flex flex-col gap-4">
+                      {getAvailableTransitions(selectedPackage.estado_actual).map((transition) => (
+                        <button
+                          key={transition.status}
+                          onClick={() => updatePackageStatus(transition.status)}
+                          disabled={isDisputeBlock || isLoading}
+                          className={`w-full px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                            isDisputeBlock
+                              ? 'bg-slate-800/50 border border-slate-700 text-slate-500 cursor-not-allowed opacity-50'
+                              : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white border border-blue-500/50 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40'
+                          }`}
+                        >
+                          <Play className="w-4 h-4" />
+                          {transition.label}
+                        </button>
+                      ))}
+
+                      {/* Contingency Token Input */}
+                      <div className="mt-2 pt-4 border-t border-slate-700/50">
+                        <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
+                          Validación por Contingencia (Falla Hardware)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ej: EXP-99"
+                          value={contingencyTokenInput}
+                          onChange={(e) => setContingencyTokenInput(e.target.value.toUpperCase())}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder:text-slate-500 focus:outline-none focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/50 transition-all font-mono tracking-widest uppercase"
+                          maxLength={6}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full px-6 py-3 rounded-lg font-semibold text-center bg-slate-800/50 border border-slate-700 text-slate-500 opacity-80">
+                      {isCompleted ? 'Completado' : 'No hay acciones disponibles'}
+                    </div>
+                  )}
                 </div>
 
                 {/* Panel del Analista */}
@@ -547,7 +515,7 @@ export const WorkerDashboard: React.FC = () => {
                   $ Historial de cambios de estado para este paquete...
                 </p>
               ) : (
-                logs.map((log, idx) => {
+                logs.map((log) => {
                   const date = new Date(log.timestamp);
                   const dateStr = date.toLocaleDateString('es-ES', { 
                     day: '2-digit', 

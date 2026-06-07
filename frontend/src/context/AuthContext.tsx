@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { AuthContextType, User, LoginResponse } from '../types/index';
+import { api } from '../services/api';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -23,25 +24,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (rut: string, password: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ rut, password }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Login failed');
-      }
-
-      const data: LoginResponse = await response.json();
+      const response = await api.post('/api/auth/login', { rut, password });
+      
+      const data = response as LoginResponse;
 
       const userData: User = {
         rut: data.rut,
         nombre: data.nombre,
-        roles: data.roles,
+        nombre_completo: data.nombre,
+        rol: data.roles?.[0] || null,
+        roles: data.roles || [],
+        activo: true,
+        ultima_conexion: new Date().toISOString(),
       };
 
       sessionStorage.setItem('token', data.token);
