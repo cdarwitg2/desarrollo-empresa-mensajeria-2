@@ -68,11 +68,12 @@ export const api = {
     }),
 };
 
-export const updateActivoEstado = async (id: string, nuevoEstado: string, integridad: string = 'Intacto', tokenContingencia?: string) => {
+export const updateActivoEstado = async (id: string, nuevoEstado: string, integridad: string = 'Intacto', tokenContingencia?: string, rutMensajero?: string) => {
   return await api.patch(`/api/packages/${id}/estado`, {
     estado: nuevoEstado,
     integridad,
-    ...(tokenContingencia && { token_contingencia: tokenContingencia })
+    ...(tokenContingencia && { token_contingencia: tokenContingencia }),
+    ...(rutMensajero && { rut_mensajero: rutMensajero })
   });
 };
 

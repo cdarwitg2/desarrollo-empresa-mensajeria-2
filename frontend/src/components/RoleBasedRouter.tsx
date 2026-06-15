@@ -1,10 +1,11 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { Dashboard } from './Dashboard';
-import { ClientDashboard } from './ClientDashboard';
-import { WarehouseDashboard } from './WarehouseDashboard';
-import { DriverDashboard } from './DriverDashboard';
+import { Dashboard } from '../Admin/Dashboard';
+import { ClientDashboard } from '../Cliente/ClientDashboard';
+import { AnalystDashboard } from '../Analista/AnalystDashboard';
+import { OperatorDashboard } from '../Operador/OperatorDashboard';
+import { DriverDashboard } from '../Mensajero/DriverDashboard';
 
 export const RoleBasedRouter: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -36,9 +37,14 @@ export const RoleBasedRouter: React.FC = () => {
     return <DriverDashboard />;
   }
 
-  // Si tiene rol de acopio o analista, mostrar WarehouseDashboard
-  if (user.roles.includes('acopio') || user.roles.includes('analista') || user.roles.includes('operador')) {
-    return <WarehouseDashboard />;
+  // Si tiene rol de analista, mostrar AnalystDashboard
+  if (user.roles.includes('analista')) {
+    return <AnalystDashboard />;
+  }
+
+  // Si tiene rol de acopio o operador, mostrar OperatorDashboard
+  if (user.roles.includes('acopio') || user.roles.includes('operador')) {
+    return <OperatorDashboard />;
   }
 
   // Si tiene rol de administrador, mostrar Dashboard con tabs

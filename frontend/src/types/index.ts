@@ -27,6 +27,7 @@ export interface Package {
   estado_actual: string;
   integridad: string;
   rut_remitente: string;
+  rut_mensajero?: string;
   timestamp_registro: string | null;
   created_at: string;
   updated_at: string;

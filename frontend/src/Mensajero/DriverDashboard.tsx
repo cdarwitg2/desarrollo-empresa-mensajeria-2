@@ -40,10 +40,10 @@ export const DriverDashboard: React.FC = () => {
       // Para el mensajero podríamos filtrar sólo los asignados a él, 
       // pero por ahora usamos el endpoint pending genérico.
       const data = await api.get('/api/packages/pending');
-      // Filtramos solo los que pueden ser operados en la calle (SOLICITADO, EN_TRANSITO)
+      // Filtramos solo los que están asignados a este mensajero
       const validPackages = (data.packages || []).filter((p: Package) => {
         const state = normalizeState(p.estado_actual);
-        return state === 'SOLICITADO' || state === 'EN_TRANSITO';
+        return (state === 'SOLICITADO' || state === 'EN_TRANSITO') && p.rut_mensajero === user?.rut;
       });
       setPackages(validPackages);
     } catch (err) {
@@ -83,12 +83,12 @@ export const DriverDashboard: React.FC = () => {
 
   const getAvailableTransitions = (currentState: string): { status: StateType, label: string }[] => {
     const normalized = normalizeState(currentState);
+    // El mensajero solo puede cambiar a ENTREGADO
     switch (normalized) {
       case 'SOLICITADO':
-        return [{ status: 'EN_TRANSITO', label: 'Iniciar Ruta (Recoger)' }];
       case 'EN_TRANSITO':
         return [
-          { status: 'ENTREGADO', label: 'Entregar al Cliente' }
+          { status: 'ENTREGADO', label: 'Marcar como Entregado' }
         ];
       default:
         return [];
@@ -187,6 +187,10 @@ export const DriverDashboard: React.FC = () => {
               </div>
 
               <div className="space-y-4 text-left">
+                <div className="bg-slate-950 p-4 rounded-2xl">
+                  <p className="text-xs text-slate-500 mb-1 uppercase font-bold">Descripción del Producto</p>
+                  <p className="font-medium text-white">{selectedPackage.descripcion}</p>
+                </div>
                 <div className="bg-slate-950 p-4 rounded-2xl">
                   <p className="text-xs text-slate-500 mb-1 uppercase font-bold">Origen</p>
                   <p className="font-medium">{selectedPackage.direccion_origen}</p>

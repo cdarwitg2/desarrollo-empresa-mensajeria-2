@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Play, AlertTriangle, RotateCcw, Zap, FileText } from 'lucide-react';
+import { LogOut, Play, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { api, updateActivoEstado } from '../services/api';
 import { Package, LogEntry } from '../types';
 
-type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'ENTREGADO' | 'EN_DISPUTA';
+type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'ENTREGADO' | 'EN_DISPUTA' | 'RECIBIDO';
 
 const normalizeState = (state: string): StateType => {
   return state.toUpperCase().replace('Á', 'A').replace('Ó', 'O').replace(' ', '_') as StateType;
 };
 
-const STATES_PIPELINE: StateType[] = ['SOLICITADO', 'EN_TRANSITO', 'EN_ACOPIO', 'ENTREGADO'];
+const STATES_PIPELINE: StateType[] = ['SOLICITADO', 'EN_TRANSITO', 'EN_ACOPIO', 'ENTREGADO', 'RECIBIDO'];
 
-export const WarehouseDashboard: React.FC = () => {
+export const OperatorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -25,42 +25,22 @@ export const WarehouseDashboard: React.FC = () => {
   const [error, setError] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [contingencyTokenInput, setContingencyTokenInput] = useState('');
+  const [rutMensajeroInput, setRutMensajeroInput] = useState('');
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  // Cargar paquetes pendientes al montar
-  useEffect(() => {
-    fetchPendingPackages();
-  }, []);
-
-  // Cargar paquetes cuando cambia el filtro
   useEffect(() => {
     fetchPackagesByFilter();
   }, [selectedFilter]);
 
-  // Cargar logs cuando se selecciona un paquete
   useEffect(() => {
     if (selectedPackage) {
       fetchPackageLogs(selectedPackage.id);
     }
   }, [selectedPackage]);
-
-  const fetchPendingPackages = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-
-      const data = await api.get('/api/packages/pending');
-      setPackages(data.packages || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const fetchPackagesByFilter = async () => {
     try {
@@ -71,6 +51,10 @@ export const WarehouseDashboard: React.FC = () => {
       let url = '/api/packages/filter';
       if (selectedFilter !== 'all') {
         url += `?estado=${selectedFilter}`;
+      } else {
+        // En "all", el operador solo debería ver los estados que le competen
+        // SOLICITADO, EN_TRANSITO, EN_ACOPIO
+        url = '/api/packages/pending'; 
       }
 
       const data = await api.get(url);
@@ -85,12 +69,10 @@ export const WarehouseDashboard: React.FC = () => {
   const fetchPackageLogs = async (packageId: string) => {
     try {
       setIsLoading(true);
-
       try {
         const data = await api.get(`/api/packages/${packageId}/logs`);
         setLogs(data.logs || []);
       } catch (err: any) {
-        // Si el endpoint no existe aún o da 404
         if (err.status === 404) {
           setLogs([]);
         } else {
@@ -105,25 +87,27 @@ export const WarehouseDashboard: React.FC = () => {
     }
   };
 
-  const updatePackageStatus = async (newStatus: StateType, integridad?: string) => {
+  const updatePackageStatus = async (newStatus: StateType) => {
     if (!selectedPackage) return;
+
+    if (newStatus === 'EN_TRANSITO' && !rutMensajeroInput.trim()) {
+      setError('Debes ingresar el RUT del mensajero para marcar en tránsito.');
+      return;
+    }
 
     try {
       setIsLoading(true);
+      const data = await updateActivoEstado(selectedPackage.id_activo, newStatus, selectedPackage.integridad, contingencyTokenInput, newStatus === 'EN_TRANSITO' ? rutMensajeroInput : undefined);
 
-      const data = await updateActivoEstado(selectedPackage.id_activo, newStatus, integridad, contingencyTokenInput);
-
-      // Actualizar paquete seleccionado
       setSelectedPackage(data.asset);
-      setContingencyTokenInput(''); // Clear on success
+      setContingencyTokenInput('');
+      if (newStatus === 'EN_TRANSITO') setRutMensajeroInput('');
 
-      // Agregar nuevo log al principio (más recientes primero)
       if (data.log) {
         setLogs([data.log, ...logs]);
       }
 
-      // Recargar lista de pendientes
-      await fetchPendingPackages();
+      await fetchPackagesByFilter();
     } catch (err: any) {
       if (err.status === 409) {
         setError(err.message || 'Error de conflicto de transición de estado');
@@ -135,58 +119,31 @@ export const WarehouseDashboard: React.FC = () => {
     }
   };
 
-  // handleOperatorAction is no longer used, we call updatePackageStatus directly with the selected state.
-
-  const handleForceDispute = async () => {
-    await updatePackageStatus('EN_DISPUTA');
-  };
-
-  const handleSimulateAccident = async () => {
-    const randomChance = Math.random();
-    if (randomChance < 0.1) {
-      // 10% probabilidad: EN_DISPUTA
-      await updatePackageStatus('EN_DISPUTA');
-    } else {
-      // 90% probabilidad: integridad dañada
-      await updatePackageStatus(normalizeState(selectedPackage!.estado_actual), 'Un poco dañado');
-    }
-  };
-
-  const handleReleaseAsset = async () => {
-    await updatePackageStatus('EN_ACOPIO');
-  };
-
   const getStateColor = (state: string): string => {
     switch (state) {
-      case 'SOLICITADO':
-        return 'from-blue-500 to-blue-600';
-      case 'EN_TRANSITO':
-        return 'from-yellow-500 to-yellow-600';
-      case 'EN_ACOPIO':
-        return 'from-purple-500 to-purple-600';
-      case 'ENTREGADO':
-        return 'from-green-500 to-green-600';
-      case 'EN_DISPUTA':
-        return 'from-red-500 to-red-600';
-      default:
-        return 'from-slate-500 to-slate-600';
+      case 'SOLICITADO': return 'from-blue-500 to-blue-600';
+      case 'EN_TRANSITO': return 'from-yellow-500 to-yellow-600';
+      case 'EN_ACOPIO': return 'from-purple-500 to-purple-600';
+      case 'ENTREGADO': return 'from-green-500 to-green-600';
+      case 'RECIBIDO': return 'from-teal-500 to-teal-600';
+      case 'EN_DISPUTA': return 'from-red-500 to-red-600';
+      default: return 'from-slate-500 to-slate-600';
     }
   };
 
   const getAvailableTransitions = (currentState: string): { status: StateType, label: string }[] => {
     const normalized = normalizeState(currentState);
+    // El operador solo puede marcar EN_TRANSITO o EN_ACOPIO
     switch (normalized) {
       case 'SOLICITADO':
         return [{ status: 'EN_TRANSITO', label: 'Marcar En Tránsito' }];
       case 'EN_TRANSITO':
         return [
-          { status: 'EN_ACOPIO', label: 'Recibir en Acopio' },
-          { status: 'ENTREGADO', label: 'Marcar Entregado al Cliente' }
+          { status: 'EN_ACOPIO', label: 'Recibir en Acopio' }
         ];
       case 'EN_ACOPIO':
         return [
-          { status: 'EN_TRANSITO', label: 'Marcar En Tránsito' },
-          { status: 'ENTREGADO', label: 'Marcar Entregado al Cliente' }
+          { status: 'EN_TRANSITO', label: 'Marcar En Tránsito (Salida)' }
         ];
       default:
         return [];
@@ -194,7 +151,7 @@ export const WarehouseDashboard: React.FC = () => {
   };
 
   const isDisputeBlock = selectedPackage && normalizeState(selectedPackage.estado_actual) === 'EN_DISPUTA';
-  const isCompleted = selectedPackage && normalizeState(selectedPackage.estado_actual) === 'ENTREGADO';
+  const isCompleted = selectedPackage && (normalizeState(selectedPackage.estado_actual) === 'ENTREGADO' || normalizeState(selectedPackage.estado_actual) === 'RECIBIDO');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -203,13 +160,13 @@ export const WarehouseDashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div>
-              <h2 className="text-2xl font-bold text-white">Workspace de Operador</h2>
-              <p className="text-sm text-slate-400">Sistema de Trazabilidad de Paquetes</p>
+              <h2 className="text-2xl font-bold text-white">Workspace de Operador / Acopio</h2>
+              <p className="text-sm text-slate-400">Sistema de Recepción y Despacho</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <p className="text-sm font-medium text-white">{user?.nombre}</p>
-                <p className="text-xs text-slate-400">{user?.roles.join(', ')}</p>
+                <p className="text-xs text-slate-400">Operador</p>
               </div>
               <button
                 onClick={handleLogout}
@@ -250,7 +207,7 @@ export const WarehouseDashboard: React.FC = () => {
                     : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
                 }`}
               >
-                Todos
+                Activos
               </button>
               <button
                 onClick={() => setSelectedFilter('SOLICITADO')}
@@ -281,26 +238,6 @@ export const WarehouseDashboard: React.FC = () => {
                 }`}
               >
                 En Acopio
-              </button>
-              <button
-                onClick={() => setSelectedFilter('ENTREGADO')}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
-                  selectedFilter === 'ENTREGADO'
-                    ? 'bg-green-500/20 border-green-500/50 text-green-300'
-                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                }`}
-              >
-                Entregado
-              </button>
-              <button
-                onClick={() => setSelectedFilter('EN_DISPUTA')}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
-                  selectedFilter === 'EN_DISPUTA'
-                    ? 'bg-red-500/20 border-red-500/50 text-red-300'
-                    : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                }`}
-              >
-                Disputa
               </button>
             </div>
 
@@ -405,19 +342,12 @@ export const WarehouseDashboard: React.FC = () => {
                       );
                     })}
                   </div>
-
-                  {normalizeState(selectedPackage.estado_actual) === 'EN_DISPUTA' && (
-                    <div className="mt-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2">
-                      <AlertTriangle className="w-5 h-5 text-red-400" />
-                      <p className="text-red-400 text-sm">Paquete en DISPUTA - Flujo bloqueado</p>
-                    </div>
-                  )}
                 </div>
 
                 {/* Controles del Operador */}
                 <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-xl p-6">
                   <h4 className="text-sm font-semibold text-slate-300 mb-4 uppercase">
-                    Controles del Operador / Acopio
+                    Controles de Operador / Acopio
                   </h4>
                   
                   {getAvailableTransitions(selectedPackage.estado_actual).length > 0 ? (
@@ -438,62 +368,44 @@ export const WarehouseDashboard: React.FC = () => {
                         </button>
                       ))}
 
-                      {/* Contingency Token Input */}
-                      <div className="mt-2 pt-4 border-t border-slate-700/50">
-                        <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
-                          Validación por Contingencia (Falla Hardware)
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Ej: EXP-99"
-                          value={contingencyTokenInput}
-                          onChange={(e) => setContingencyTokenInput(e.target.value.toUpperCase())}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder:text-slate-500 focus:outline-none focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/50 transition-all font-mono tracking-widest uppercase"
-                          maxLength={6}
-                        />
+                      {/* Inputs de Asignación y Contingencia */}
+                      <div className="mt-2 pt-4 border-t border-slate-700/50 space-y-4">
+                        {getAvailableTransitions(selectedPackage.estado_actual).some(t => t.status === 'EN_TRANSITO') && (
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
+                              Asignar RUT Mensajero
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Ej: 12345678-9"
+                              value={rutMensajeroInput}
+                              onChange={(e) => setRutMensajeroInput(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all"
+                            />
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
+                            Validación por Contingencia (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ej: EXP-99"
+                            value={contingencyTokenInput}
+                            onChange={(e) => setContingencyTokenInput(e.target.value.toUpperCase())}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder:text-slate-500 focus:outline-none focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/50 transition-all font-mono tracking-widest uppercase"
+                            maxLength={6}
+                          />
+                        </div>
                       </div>
                     </div>
                   ) : (
                     <div className="w-full px-6 py-3 rounded-lg font-semibold text-center bg-slate-800/50 border border-slate-700 text-slate-500 opacity-80">
-                      {isCompleted ? 'Completado' : 'No hay acciones disponibles'}
+                      {isCompleted ? 'Completado' : isDisputeBlock ? 'Bloqueado por Disputa' : 'No hay acciones disponibles'}
                     </div>
                   )}
                 </div>
-
-                {/* Panel del Analista */}
-                {user?.roles.includes('analista') && (
-                  <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-xl p-6">
-                    <h4 className="text-sm font-semibold text-slate-300 mb-4 uppercase">
-                      Simulación del Analista
-                    </h4>
-                    <div className="grid grid-cols-3 gap-3">
-                      <button
-                        onClick={handleForceDispute}
-                        disabled={isLoading}
-                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 text-red-400 rounded-lg font-medium transition-all disabled:opacity-50"
-                      >
-                        <AlertTriangle className="w-4 h-4 mx-auto mb-1" />
-                        <span className="text-xs">Forzar Disputa</span>
-                      </button>
-                      <button
-                        onClick={handleSimulateAccident}
-                        disabled={isLoading}
-                        className="px-4 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 rounded-lg font-medium transition-all disabled:opacity-50"
-                      >
-                        <Zap className="w-4 h-4 mx-auto mb-1" />
-                        <span className="text-xs">Simular Accidente</span>
-                      </button>
-                      <button
-                        onClick={handleReleaseAsset}
-                        disabled={isLoading || selectedPackage.estado_actual !== 'EN_DISPUTA'}
-                        className="px-4 py-2 bg-green-500/10 hover:bg-green-500/20 border border-green-500/50 text-green-400 rounded-lg font-medium transition-all disabled:opacity-50"
-                      >
-                        <RotateCcw className="w-4 h-4 mx-auto mb-1" />
-                        <span className="text-xs">Liberar Activo</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
               </>
             ) : (
               <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-xl p-12 text-center">
@@ -518,15 +430,10 @@ export const WarehouseDashboard: React.FC = () => {
                 logs.map((log) => {
                   const date = new Date(log.timestamp);
                   const dateStr = date.toLocaleDateString('es-ES', { 
-                    day: '2-digit', 
-                    month: '2-digit', 
-                    year: 'numeric' 
+                    day: '2-digit', month: '2-digit', year: 'numeric' 
                   });
                   const timeStr = date.toLocaleTimeString('es-ES', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
+                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
                   });
                   
                   return (

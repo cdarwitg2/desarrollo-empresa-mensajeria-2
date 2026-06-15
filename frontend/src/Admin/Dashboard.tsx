@@ -204,6 +204,8 @@ export const Dashboard: React.FC = () => {
         return 'text-blue-400 bg-blue-500/10 border border-blue-500/20';
       case 'operador':
         return 'text-purple-400 bg-purple-500/10 border border-purple-500/20';
+      case 'mensajero':
+        return 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20';
       case 'analista':
         return 'text-yellow-400 bg-yellow-500/10 border border-yellow-500/20';
       case 'administrador':
@@ -533,6 +535,7 @@ export const Dashboard: React.FC = () => {
                     className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
                   >
                     <option value="operador">Operador</option>
+                    <option value="mensajero">Mensajero</option>
                     <option value="analista">Analista</option>
                   </select>
                 )}
@@ -626,6 +629,7 @@ export const Dashboard: React.FC = () => {
                     className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
                   >
                     <option value="operador">Operador</option>
+                    <option value="mensajero">Mensajero</option>
                     <option value="analista">Analista</option>
                   </select>
                 </div>

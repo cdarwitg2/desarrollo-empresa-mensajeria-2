@@ -24,6 +24,7 @@ class EstadoActivo(enum.Enum):
     BLOQUEO_SEGURIDAD = "bloqueo_seguridad"
     EN_DISPUTA = "en_disputa"
     ENTREGADO = "entregado"
+    RECIBIDO = "recibido"
 
 
 # -------------------------------------------------------------------------
@@ -94,10 +95,10 @@ class Usuario(db.Model):
             if r in ['usuario', 'remitente']:
                 self.rol = RolUsuario.REMITENTE
                 return
-            elif r in ['operador', 'mensajero']:
+            elif r in ['mensajero']:
                 self.rol = RolUsuario.MENSAJERO
                 return
-            elif r in ['acopio']:
+            elif r in ['acopio', 'operador']:
                 self.rol = RolUsuario.ACOPIO
                 return
             elif r in ['analista']:
@@ -137,6 +138,7 @@ class Activo(db.Model):
     direccion_destino = db.Column(db.String(500), nullable=True)
     integridad = db.Column(db.String(50), nullable=True, default='Intacto')
     rut_remitente = db.Column(db.String(12), db.ForeignKey('usuarios.rut'), nullable=True)
+    rut_mensajero = db.Column(db.String(12), db.ForeignKey('usuarios.rut'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -145,7 +147,7 @@ class Activo(db.Model):
     token_expira = db.Column(db.DateTime, nullable=True)
 
     # Relación con Usuario para compatibilidad
-    usuario = db.relationship('Usuario', backref=db.backref('assets', lazy=True))
+    usuario = db.relationship('Usuario', foreign_keys=[rut_remitente], backref=db.backref('assets', lazy=True))
 
     # Relaciones de Trazabilidad
     # 1:N - Un activo genera un historial inmutable de cambios de manos
@@ -179,6 +181,7 @@ class Activo(db.Model):
             'estado_actual': self.estado_actual.value if self.estado_actual else None,
             'integridad': self.integridad,
             'rut_remitente': self.rut_remitente,
+            'rut_mensajero': self.rut_mensajero,
             'timestamp_registro': self.timestamp_registro.isoformat() if self.timestamp_registro else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

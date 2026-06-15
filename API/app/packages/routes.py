@@ -298,6 +298,7 @@ def update_package_status(id_activo):
         
         nuevo_estado_str = data.get('estado', '').strip()
         integridad = data.get('integridad', '').strip()
+        rut_mensajero = data.get('rut_mensajero', '').strip()
         
         if not nuevo_estado_str:
             return jsonify({'error': 'El campo "estado" es obligatorio'}), 400
@@ -344,7 +345,8 @@ def update_package_status(id_activo):
             EstadoActivo.EN_TRANSITO: [EstadoActivo.EN_ACOPIO, EstadoActivo.ENTREGADO, EstadoActivo.EN_DISPUTA],
             EstadoActivo.EN_ACOPIO: [EstadoActivo.EN_TRANSITO, EstadoActivo.ENTREGADO, EstadoActivo.EN_DISPUTA],
             EstadoActivo.EN_DISPUTA: [EstadoActivo.EN_TRANSITO, EstadoActivo.EN_ACOPIO, EstadoActivo.ENTREGADO],
-            EstadoActivo.ENTREGADO: [] # Estado final
+            EstadoActivo.ENTREGADO: [EstadoActivo.RECIBIDO],
+            EstadoActivo.RECIBIDO: [] # Estado final
         }
         
         # Si el estado actual no existe (es nuevo), asumimos que era SOLICITADO o no tiene restricciones para el primer salto
@@ -364,6 +366,9 @@ def update_package_status(id_activo):
         
         estado_anterior = activo.estado_actual.value if activo.estado_actual else 'Desconocido'
         activo.estado_actual = nuevo_estado_enum
+        
+        if rut_mensajero and nuevo_estado_enum == EstadoActivo.EN_TRANSITO:
+            activo.rut_mensajero = rut_mensajero
         
         if integridad:
             activo.integridad = integridad
