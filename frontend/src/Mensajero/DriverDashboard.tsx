@@ -1,238 +1,359 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Play, AlertOctagon, Package as PackageIcon, CheckCircle2 } from 'lucide-react';
+import { LogOut, Package, Truck, CheckCircle, MapPin, UserIcon, Loader2, X, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { api, updateActivoEstado } from '../services/api';
+import { Package as PackageType } from '../types';
 
-import { api, updateActivoEstado, generarContingencia } from '../services/api';
-import { Package } from '../types';
+type TabType = 'pendientes' | 'ruta';
+type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'EN_ACOPIO_ASIGNADO' | 'EN_TRANSITO_ENTREGA' | 'ENTREGADO' | 'RECIBIDO' | 'EN_DISPUTA';
 
-type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'ENTREGADO' | 'EN_DISPUTA';
-
-const normalizeState = (state: string): StateType => {
-  return state.toUpperCase().replace('Á', 'A').replace('Ó', 'O').replace(' ', '_') as StateType;
-};
+interface ToastMessage {
+  type: 'success' | 'error' | 'info';
+  message: string;
+}
 
 export const DriverDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [packages, setPackages] = useState<Package[]>([]);
-  const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
+  const [packages, setPackages] = useState<PackageType[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>('pendientes');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // Contingencia State
-  const [contingencyToken, setContingencyToken] = useState('');
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  // Función para mostrar notificaciones toast
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ type, message });
+    // Auto-cerrar después de 4 segundos
+    setTimeout(() => {
+      setToast(null);
+    }, 4000);
+  };
+
   useEffect(() => {
-    fetchPendingPackages();
-  }, []);
+    fetchMessengerPackages();
+  }, [activeTab]);
 
-  const fetchPendingPackages = async () => {
+  const fetchMessengerPackages = async () => {
     try {
       setIsLoading(true);
       setError('');
-      // Para el mensajero podríamos filtrar sólo los asignados a él, 
-      // pero por ahora usamos el endpoint pending genérico.
-      const data = await api.get('/api/packages/pending');
-      // Filtramos solo los que están asignados a este mensajero
-      const validPackages = (data.packages || []).filter((p: Package) => {
-        const state = normalizeState(p.estado_actual);
-        return (state === 'SOLICITADO' || state === 'EN_TRANSITO') && p.rut_mensajero === user?.rut;
-      });
-      setPackages(validPackages);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const updatePackageStatus = async (newStatus: StateType) => {
-    if (!selectedPackage) return;
-    try {
-      setIsLoading(true);
-      const data = await updateActivoEstado(selectedPackage.id_activo, newStatus, 'Intacto');
-      setSelectedPackage(data.asset);
-      await fetchPendingPackages();
+      // Obtener paquetes del mensajero según la pestaña activa
+      let estado = '';
+      if (activeTab === 'pendientes') {
+        estado = 'EN_ACOPIO_ASIGNADO';
+      } else {
+        estado = 'EN_TRANSITO_ENTREGA';
+      }
+
+      const data = await api.get(`/api/packages/filter?estado=${estado}`);
+      // Filtrar solo los paquetes asignados a este mensajero
+      const rutMensajero = user?.rut;
+      const paquetesFiltrados = (data.packages || []).filter(
+        (pkg: PackageType) => pkg.rut_mensajero === rutMensajero
+      );
+      setPackages(paquetesFiltrados);
     } catch (err: any) {
-      setError(err.message || 'Error de actualización de estado');
+      setError(err.message || 'Error al cargar paquetes');
+      showToast('Error al cargar los paquetes', 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGenerateContingency = async () => {
-    if (!selectedPackage) return;
+  const handleRecoger = async (packageId: string, idActivo: string, integridad: string) => {
+    // Evitar múltiples solicitudes al mismo paquete
+    if (actionLoading === packageId) return;
+
+    setActionLoading(packageId);
+    setError('');
+
     try {
-      setIsLoading(true);
-      setError('');
-      const data = await generarContingencia(selectedPackage.id_activo);
-      setContingencyToken(data.token_contingencia);
+      await updateActivoEstado(
+        idActivo,
+        'EN_TRANSITO_ENTREGA',
+        integridad,
+        '',
+        user?.rut
+      );
+
+      showToast(`✅ Paquete "${packageId}" recogido exitosamente`, 'success');
+      await fetchMessengerPackages();
     } catch (err: any) {
-      setError(err.message || 'Error al generar token de contingencia');
+      if (err.status === 409) {
+        const errorMsg = 'Error de conflicto. El paquete puede haber sido modificado por otro usuario.';
+        setError(errorMsg);
+        showToast(`❌ ${errorMsg}`, 'error');
+      } else {
+        const errorMsg = err.message || 'Error al recoger el paquete';
+        setError(errorMsg);
+        showToast(`❌ ${errorMsg}`, 'error');
+      }
     } finally {
-      setIsLoading(false);
+      setActionLoading(null);
     }
   };
 
-  const getAvailableTransitions = (currentState: string): { status: StateType, label: string }[] => {
-    const normalized = normalizeState(currentState);
-    // El mensajero solo puede cambiar a ENTREGADO
-    switch (normalized) {
-      case 'SOLICITADO':
-      case 'EN_TRANSITO':
-        return [
-          { status: 'ENTREGADO', label: 'Marcar como Entregado' }
-        ];
-      default:
-        return [];
+  const handleEntregar = async (packageId: string, idActivo: string, integridad: string) => {
+    // Evitar múltiples solicitudes al mismo paquete
+    if (actionLoading === packageId) return;
+
+    setActionLoading(packageId);
+    setError('');
+
+    try {
+      await updateActivoEstado(
+        idActivo,
+        'ENTREGADO',
+        integridad,
+        '',
+        user?.rut
+      );
+
+      showToast(`✅ Paquete "${packageId}" entregado exitosamente`, 'success');
+      await fetchMessengerPackages();
+    } catch (err: any) {
+      if (err.status === 409) {
+        const errorMsg = 'Error de conflicto. El paquete puede haber sido modificado por otro usuario.';
+        setError(errorMsg);
+        showToast(`❌ ${errorMsg}`, 'error');
+      } else {
+        const errorMsg = err.message || 'Error al marcar como entregado';
+        setError(errorMsg);
+        showToast(`❌ ${errorMsg}`, 'error');
+      }
+    } finally {
+      setActionLoading(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
-      {/* App Bar Móvil */}
-      <div className="bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
-        <div>
-          <h2 className="text-xl font-bold text-blue-400">Mensajero App</h2>
-          <p className="text-xs text-slate-400">{user?.nombre}</p>
+    <div className="flex h-screen bg-[#0b111a] text-slate-300 font-sans overflow-hidden">
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right-5 fade-in duration-300">
+          <div className={`px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 min-w-[300px] max-w-md ${
+            toast.type === 'success' 
+              ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400' 
+              : toast.type === 'error'
+              ? 'bg-red-500/20 border border-red-500/50 text-red-400'
+              : 'bg-blue-500/20 border border-blue-500/50 text-blue-400'
+          }`}>
+            {toast.type === 'success' && <CheckCircle className="w-5 h-5 flex-shrink-0" />}
+            {toast.type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
+            {toast.type === 'info' && <Package className="w-5 h-5 flex-shrink-0" />}
+            <span className="text-sm font-medium">{toast.message}</span>
+            <button 
+              onClick={() => setToast(null)} 
+              className="ml-auto hover:opacity-70 transition-opacity"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-        <button onClick={handleLogout} className="p-2 bg-slate-800 rounded-full text-slate-300">
-          <LogOut className="w-5 h-5" />
-        </button>
+      )}
+
+      {/* Sidebar */}
+      <div className="w-64 border-r border-white/5 bg-[#0b111a] flex flex-col justify-between shrink-0">
+        <div>
+          {/* Brand */}
+          <div className="flex items-center gap-3 px-6 py-8">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+              <Package className="w-5 h-5 text-emerald-400" />
+            </div>
+            <h1 className="text-lg font-bold text-white tracking-wide">Portal Mensajero</h1>
+          </div>
+
+          {/* Nav Links */}
+          <nav className="px-4 space-y-2 mt-4">
+            <button
+              onClick={() => setActiveTab('pendientes')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                activeTab === 'pendientes'
+                  ? 'bg-emerald-400 text-slate-900 font-semibold shadow-[0_0_15px_rgba(52,211,153,0.3)]'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              Pendientes
+              {packages.length > 0 && activeTab === 'pendientes' && (
+                <span className="ml-auto bg-white/20 text-slate-900 px-2 py-0.5 rounded-full text-xs font-bold">
+                  {packages.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('ruta')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                activeTab === 'ruta'
+                  ? 'bg-emerald-400 text-slate-900 font-semibold shadow-[0_0_15px_rgba(52,211,153,0.3)]'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Truck className="w-4 h-4" />
+              En Ruta
+              {packages.length > 0 && activeTab === 'ruta' && (
+                <span className="ml-auto bg-white/20 text-slate-900 px-2 py-0.5 rounded-full text-xs font-bold">
+                  {packages.length}
+                </span>
+              )}
+            </button>
+          </nav>
+        </div>
+
+        {/* User Profile Footer */}
+        <div className="p-6 border-t border-white/5">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border border-white/10 text-emerald-400">
+              <UserIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">{user?.nombre || 'Usuario'}</p>
+              <p className="text-xs text-slate-500">Mensajero</p>
+            </div>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 text-sm text-slate-500 hover:text-white transition-colors w-full"
+          >
+            <LogOut className="w-4 h-4" />
+            Cerrar sesión
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 p-4 flex flex-col gap-4 overflow-y-auto pb-24">
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/50 rounded-xl p-4 text-red-400 text-sm">
-            {error}
-          </div>
-        )}
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto bg-[#0b111a] p-8 lg:p-12">
+        <div className="mb-8 border-b border-white/5 pb-4">
+          <h2 className="text-3xl font-bold text-white inline-block relative">
+            {activeTab === 'pendientes' ? 'Paquetes Pendientes' : 'Paquetes en Ruta'}
+            <div className="absolute -bottom-4 left-0 w-1/3 h-1 bg-emerald-500 rounded-full"></div>
+          </h2>
+          <p className="text-slate-400 mt-4">
+            {activeTab === 'pendientes'
+              ? 'Recoge los paquetes asignados para iniciar la entrega'
+              : 'Paquetes que estás llevando a su destino'}
+          </p>
+        </div>
 
-        {/* Token Modal / Overlay */}
-        {contingencyToken && (
-          <div className="fixed inset-0 bg-black/90 z-[100] flex flex-col items-center justify-center p-6 text-center">
-            <AlertOctagon className="w-16 h-16 text-yellow-400 mb-4 animate-bounce" />
-            <h3 className="text-2xl font-bold text-white mb-2">Token de Excepción</h3>
-            <p className="text-slate-300 mb-8">Dicta este código al operador o al cliente para destrabar el envío sin escanear QR.</p>
-            <div className="bg-yellow-400 text-slate-900 text-6xl font-black px-8 py-6 rounded-2xl tracking-widest mb-8">
-              {contingencyToken}
-            </div>
-            <button 
-              onClick={() => setContingencyToken('')}
-              className="px-8 py-4 bg-slate-800 rounded-full text-white font-bold text-lg w-full max-w-xs"
-            >
-              Cerrar
+        {error && (
+          <div className="mb-6 bg-red-500/10 border border-red-500/50 rounded-lg p-4 flex items-center gap-3">
+            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+            <p className="text-red-400 text-sm">{error}</p>
+            <button onClick={() => setError('')} className="ml-auto text-red-400 hover:text-red-300">
+              <X size={16} />
             </button>
           </div>
         )}
 
-        {/* Vista principal: Selector de paquetes vs Paquete Activo */}
-        {!selectedPackage ? (
-          <div className="flex-1 flex flex-col">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-300">
-              <PackageIcon className="w-5 h-5" /> 
-              Paquetes Asignados ({packages.length})
-            </h3>
-            
-            {packages.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
-                <CheckCircle2 className="w-16 h-16 mb-4 opacity-20" />
-                <p className="text-lg">No hay rutas pendientes</p>
+        {isLoading && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center">
+            <div className="bg-[#131b26] rounded-xl p-6 flex items-center gap-3">
+              <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+              <span className="text-white">Cargando...</span>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {packages.length === 0 ? (
+            <div className="lg:col-span-3 text-center py-16 text-slate-500">
+              <div className="w-16 h-16 rounded-full border border-slate-700 flex items-center justify-center mx-auto mb-4">
+                <Package className="w-8 h-8 text-slate-600" />
               </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {packages.map(pkg => (
-                  <button
-                    key={pkg.id}
-                    onClick={() => setSelectedPackage(pkg)}
-                    className="bg-slate-900 border border-slate-800 p-4 rounded-2xl text-left active:scale-95 transition-transform"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-bold text-lg">{pkg.nombre}</span>
-                      <span className="text-xs font-bold bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
-                        {normalizeState(pkg.estado_actual)}
+              <p className="font-medium text-slate-400">
+                {activeTab === 'pendientes'
+                  ? 'No tienes paquetes pendientes'
+                  : 'No tienes paquetes en ruta'}
+              </p>
+              <p className="text-sm mt-1 text-slate-600">
+                {activeTab === 'pendientes'
+                  ? 'Espera a que te asignen nuevos paquetes'
+                  : 'Todos tus paquetes han sido entregados'}
+              </p>
+            </div>
+          ) : (
+            packages.map((pkg) => {
+              const isActionLoading = actionLoading === pkg.id;
+              return (
+                <div
+                  key={pkg.id}
+                  className="bg-[#131b26] rounded-2xl border border-white/5 p-6 hover:border-white/10 transition-all flex flex-col"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-lg font-bold text-white truncate flex-1 mr-2">
+                      {pkg.nombre}
+                    </h3>
+                    <span className={`text-xs px-3 py-1 rounded-full whitespace-nowrap ${
+                      pkg.estado_actual === 'EN_ACOPIO_ASIGNADO'
+                        ? 'bg-indigo-500/30 text-indigo-300'
+                        : 'bg-orange-500/30 text-orange-300'
+                    }`}>
+                      {pkg.estado_actual === 'EN_ACOPIO_ASIGNADO' ? 'Pendiente' : 'En Ruta'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 mb-4 flex-1">
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <MapPin className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{pkg.direccion_destino}</span>
+                    </div>
+                    {pkg.rut_remitente && (
+                      <div className="flex items-center gap-2 text-sm text-slate-400">
+                        <Package className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">Remitente: {pkg.rut_remitente}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className={`font-medium ${
+                        pkg.integridad === 'Intacto' ? 'text-emerald-400' : 'text-yellow-400'
+                      }`}>
+                        Integridad: {pkg.integridad || 'Intacto'}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-400 mb-1">Destino: {pkg.direccion_destino}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col animate-in slide-in-from-right-4">
-            <button 
-              onClick={() => setSelectedPackage(null)}
-              className="text-blue-400 text-sm mb-4 font-semibold flex items-center gap-1"
-            >
-              ← Volver a la lista
-            </button>
+                  </div>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 mb-6 shadow-xl">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-400">
-                  <PackageIcon className="w-6 h-6" />
+                  {activeTab === 'pendientes' ? (
+                    <button
+                      onClick={() => handleRecoger(pkg.id, pkg.id_activo, pkg.integridad)}
+                      disabled={isActionLoading || isLoading}
+                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isActionLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-4 h-4" />
+                      )}
+                      {isActionLoading ? 'Procesando...' : 'Recoger'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleEntregar(pkg.id, pkg.id_activo, pkg.integridad)}
+                      disabled={isActionLoading || isLoading}
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isActionLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Truck className="w-4 h-4" />
+                      )}
+                      {isActionLoading ? 'Procesando...' : 'Entregado'}
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <h3 className="text-2xl font-bold">{selectedPackage.nombre}</h3>
-                  <p className="text-slate-400 text-sm">ID: {selectedPackage.id_activo}</p>
-                </div>
-              </div>
-
-              <div className="space-y-4 text-left">
-                <div className="bg-slate-950 p-4 rounded-2xl">
-                  <p className="text-xs text-slate-500 mb-1 uppercase font-bold">Descripción del Producto</p>
-                  <p className="font-medium text-white">{selectedPackage.descripcion}</p>
-                </div>
-                <div className="bg-slate-950 p-4 rounded-2xl">
-                  <p className="text-xs text-slate-500 mb-1 uppercase font-bold">Origen</p>
-                  <p className="font-medium">{selectedPackage.direccion_origen}</p>
-                </div>
-                <div className="bg-slate-950 p-4 rounded-2xl">
-                  <p className="text-xs text-slate-500 mb-1 uppercase font-bold">Destino Final</p>
-                  <p className="font-medium text-blue-300">{selectedPackage.direccion_destino}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Acciones */}
-            <div className="flex flex-col gap-4 mt-auto">
-              {getAvailableTransitions(selectedPackage.estado_actual).map((transition) => (
-                <button
-                  key={transition.status}
-                  onClick={() => updatePackageStatus(transition.status)}
-                  disabled={isLoading}
-                  className="bg-blue-600 active:bg-blue-700 text-white p-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-lg shadow-blue-900/50"
-                >
-                  <Play className="w-6 h-6" />
-                  {transition.label}
-                </button>
-              ))}
-
-              <div className="relative flex items-center py-4">
-                <div className="flex-grow border-t border-slate-800"></div>
-                <span className="flex-shrink-0 mx-4 text-slate-500 text-sm font-medium">Opciones de Emergencia</span>
-                <div className="flex-grow border-t border-slate-800"></div>
-              </div>
-
-              <button
-                onClick={handleGenerateContingency}
-                disabled={isLoading}
-                className="bg-slate-900 border-2 border-yellow-500/30 text-yellow-500 active:bg-yellow-500/10 p-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3"
-              >
-                <AlertOctagon className="w-6 h-6" />
-                Falla Hardware (Generar Token)
-              </button>
-            </div>
-          </div>
-        )}
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState} from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, Package, AlertTriangle, FileText, UserIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -57,10 +57,6 @@ export const OperatorDashboard: React.FC = () => {
     }
   };
 
-  // Función de refresh estable usando useCallback
-  const refreshData = useCallback(() => {
-    setRefreshKey(prev => prev + 1);
-  }, []);
 
   return (
     <div className="flex h-screen bg-[#0b111a] text-slate-300 font-sans overflow-hidden">
