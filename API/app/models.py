@@ -20,6 +20,7 @@ class EstadoActivo(enum.Enum):
     SOLICITADO = "solicitado"
     EN_TRANSITO = "en_transito"
     EN_ACOPIO = "en_acopio"
+    EN_ACOPIO_ASIGNADO = "en_acopio_asignado"
     EN_TRANSITO_ENTREGA = "en_transito_entrega"
     ENTREGA_PENDIENTE_SINCRONIZACION = "entrega_pendiente_sincronizacion"
     BLOQUEO_SEGURIDAD = "bloqueo_seguridad"

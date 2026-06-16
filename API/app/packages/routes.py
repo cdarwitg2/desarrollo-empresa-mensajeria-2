@@ -174,8 +174,7 @@ def get_package(id_activo):
 @jwt_required()
 def get_pending_packages():
     """
-    Obtiene todos los paquetes excepto los ENTREGADO y RECIBIDO
-    Incluye SOLICITADO, EN_TRANSITO, EN_ACOPIO, EN_TRANSITO_ENTREGA
+    Obtiene todos los paquetes pendientes (excluye ENTREGADO y RECIBIDO)
     """
     try:
         claims = get_jwt()
@@ -184,7 +183,6 @@ def get_pending_packages():
         if not rut_responsable:
             return jsonify({'error': 'Token inválido'}), 401
         
-        # Estados pendientes (excluyendo ENTREGADO y RECIBIDO)
         estados_excluidos = [EstadoActivo.ENTREGADO, EstadoActivo.RECIBIDO]
         pending_packages = Activo.query.filter(~Activo.estado_actual.in_(estados_excluidos)).all()
         
@@ -344,8 +342,9 @@ def update_package_status(id_activo):
         
         transiciones_validas = {
             EstadoActivo.SOLICITADO: [EstadoActivo.EN_TRANSITO],
-            EstadoActivo.EN_TRANSITO: [EstadoActivo.EN_ACOPIO, EstadoActivo.ENTREGADO, EstadoActivo.EN_DISPUTA],
-            EstadoActivo.EN_ACOPIO: [EstadoActivo.EN_TRANSITO_ENTREGA, EstadoActivo.ENTREGADO, EstadoActivo.EN_DISPUTA],
+            EstadoActivo.EN_TRANSITO: [EstadoActivo.EN_ACOPIO, EstadoActivo.EN_DISPUTA],
+            EstadoActivo.EN_ACOPIO: [EstadoActivo.EN_ACOPIO_ASIGNADO, EstadoActivo.EN_DISPUTA],
+            EstadoActivo.EN_ACOPIO_ASIGNADO: [EstadoActivo.EN_TRANSITO_ENTREGA, EstadoActivo.EN_DISPUTA],
             EstadoActivo.EN_TRANSITO_ENTREGA: [EstadoActivo.ENTREGADO, EstadoActivo.EN_DISPUTA],
             EstadoActivo.EN_DISPUTA: [EstadoActivo.EN_TRANSITO, EstadoActivo.EN_ACOPIO, EstadoActivo.ENTREGADO, EstadoActivo.EN_TRANSITO_ENTREGA],
             EstadoActivo.ENTREGADO: [EstadoActivo.RECIBIDO],
@@ -469,6 +468,7 @@ def get_mensajeros():
 def asignar_mensajero(id_activo):
     """
     Asigna un mensajero a un paquete/activo en estado EN_ACOPIO
+    Cambia el estado a EN_ACOPIO_ASIGNADO
     """
     try:
         rut_actual = get_jwt()
@@ -510,6 +510,7 @@ def asignar_mensajero(id_activo):
         if not mensajero:
             return jsonify({'error': f'Mensajero con RUT {rut_mensajero} no encontrado o no está activo'}), 404
         
+        activo.estado_actual = EstadoActivo.EN_ACOPIO_ASIGNADO
         activo.rut_mensajero = rut_mensajero
         activo.tiempo_asignacion = datetime.utcnow()
         activo.updated_at = datetime.utcnow()
@@ -668,3 +669,32 @@ def get_tiempo_restante(id_activo):
         
     except Exception as e:
         return jsonify({'error': f'Error al obtener tiempo restante: {str(e)}'}), 500
+
+@packages_bp.route('/my-assigned', methods=['GET'])
+@jwt_required()
+def get_my_assigned_packages():
+    """
+    Obtiene los paquetes asignados al mensajero autenticado
+    Filtra por estado EN_ACOPIO_ASIGNADO y rut_mensajero = usuario actual
+    """
+    try:
+        claims = get_jwt()
+        rut_mensajero = claims.get('rut')
+        
+        if not rut_mensajero:
+            return jsonify({'error': 'Token inválido'}), 401
+        
+        # Filtrar paquetes asignados al mensajero actual
+        paquetes = Activo.query.filter(
+            Activo.estado_actual == EstadoActivo.EN_ACOPIO_ASIGNADO,
+            Activo.rut_mensajero == rut_mensajero
+        ).order_by(Activo.created_at.desc()).all()
+        
+        return jsonify({
+            'success': True,
+            'total': len(paquetes),
+            'packages': [pkg.to_dict() for pkg in paquetes]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener paquetes asignados: {str(e)}'}), 500
