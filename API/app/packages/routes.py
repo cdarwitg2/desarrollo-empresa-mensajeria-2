@@ -174,7 +174,8 @@ def get_package(id_activo):
 @jwt_required()
 def get_pending_packages():
     """
-    Obtiene todos los paquetes excepto los ENTREGADO
+    Obtiene todos los paquetes excepto los ENTREGADO y RECIBIDO
+    Incluye SOLICITADO, EN_TRANSITO, EN_ACOPIO, EN_TRANSITO_ENTREGA
     """
     try:
         claims = get_jwt()
@@ -183,8 +184,9 @@ def get_pending_packages():
         if not rut_responsable:
             return jsonify({'error': 'Token inválido'}), 401
         
-        # Obtener todos los paquetes excepto los ENTREGADO
-        pending_packages = Activo.query.filter(Activo.estado_actual != EstadoActivo.ENTREGADO).all()
+        # Estados pendientes (excluyendo ENTREGADO y RECIBIDO)
+        estados_excluidos = [EstadoActivo.ENTREGADO, EstadoActivo.RECIBIDO]
+        pending_packages = Activo.query.filter(~Activo.estado_actual.in_(estados_excluidos)).all()
         
         return jsonify({
             'success': True,
@@ -343,10 +345,11 @@ def update_package_status(id_activo):
         transiciones_validas = {
             EstadoActivo.SOLICITADO: [EstadoActivo.EN_TRANSITO],
             EstadoActivo.EN_TRANSITO: [EstadoActivo.EN_ACOPIO, EstadoActivo.ENTREGADO, EstadoActivo.EN_DISPUTA],
-            EstadoActivo.EN_ACOPIO: [EstadoActivo.EN_TRANSITO, EstadoActivo.ENTREGADO, EstadoActivo.EN_DISPUTA],
-            EstadoActivo.EN_DISPUTA: [EstadoActivo.EN_TRANSITO, EstadoActivo.EN_ACOPIO, EstadoActivo.ENTREGADO],
+            EstadoActivo.EN_ACOPIO: [EstadoActivo.EN_TRANSITO_ENTREGA, EstadoActivo.ENTREGADO, EstadoActivo.EN_DISPUTA],
+            EstadoActivo.EN_TRANSITO_ENTREGA: [EstadoActivo.ENTREGADO, EstadoActivo.EN_DISPUTA],
+            EstadoActivo.EN_DISPUTA: [EstadoActivo.EN_TRANSITO, EstadoActivo.EN_ACOPIO, EstadoActivo.ENTREGADO, EstadoActivo.EN_TRANSITO_ENTREGA],
             EstadoActivo.ENTREGADO: [EstadoActivo.RECIBIDO],
-            EstadoActivo.RECIBIDO: [] # Estado final
+            EstadoActivo.RECIBIDO: []
         }
         
         # Si el estado actual no existe (es nuevo), asumimos que era SOLICITADO o no tiene restricciones para el primer salto
@@ -367,7 +370,7 @@ def update_package_status(id_activo):
         estado_anterior = activo.estado_actual.value if activo.estado_actual else 'Desconocido'
         activo.estado_actual = nuevo_estado_enum
         
-        if rut_mensajero and nuevo_estado_enum == EstadoActivo.EN_TRANSITO:
+        if rut_mensajero and (nuevo_estado_enum == EstadoActivo.EN_TRANSITO or nuevo_estado_enum == EstadoActivo.EN_TRANSITO_ENTREGA):
             activo.rut_mensajero = rut_mensajero
         
         if integridad:
@@ -427,3 +430,241 @@ def get_package_logs(id_activo):
     
     except Exception as e:
         return jsonify({'error': f'Error al obtener logs: {str(e)}'}), 500
+
+
+# ============================================================
+# NUEVOS ENDPOINTS PARA OPERADOR Y ASIGNACIÓN DE MENSAJEROS
+# ============================================================
+
+@packages_bp.route('/mensajeros', methods=['GET'])
+@jwt_required()
+def get_mensajeros():
+    """
+    Obtiene la lista de usuarios con rol de mensajero
+    """
+    try:
+        from app.models import RolUsuario
+        
+        mensajeros = Usuario.query.filter(
+            Usuario.rol == RolUsuario.MENSAJERO,
+            Usuario.activo == True
+        ).all()
+        
+        return jsonify({
+            'success': True,
+            'total': len(mensajeros),
+            'mensajeros': [{
+                'rut': m.rut,
+                'nombre_completo': m.nombre_completo,
+                'activo': m.activo
+            } for m in mensajeros]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener mensajeros: {str(e)}'}), 500
+
+
+@packages_bp.route('/<id_activo>/asignar', methods=['PATCH'])
+@jwt_required()
+def asignar_mensajero(id_activo):
+    """
+    Asigna un mensajero a un paquete/activo en estado EN_ACOPIO
+    """
+    try:
+        rut_actual = get_jwt()
+        if not rut_actual:
+            return jsonify({'error': 'Token inválido'}), 401
+        
+        rut_actual = rut_actual.get('rut')
+        
+        activo = Activo.query.filter_by(id_activo=id_activo).first()
+        if not activo:
+            return jsonify({'error': f'Activo con ID {id_activo} no encontrado'}), 404
+        
+        # Validar estado EN_ACOPIO
+        if activo.estado_actual != EstadoActivo.EN_ACOPIO:
+            return jsonify({
+                'error': f'No se puede asignar mensajero. El paquete está en estado "{activo.estado_actual.value}" y debe estar en "en_acopio"'
+            }), 400
+        
+        if activo.is_blocked:
+            return jsonify({
+                'error': 'El paquete está bloqueado por una incidencia. No se puede asignar mensajero.'
+            }), 403
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Cuerpo de solicitud vacío'}), 400
+        
+        rut_mensajero = data.get('rut_mensajero')
+        if not rut_mensajero:
+            return jsonify({'error': 'El campo "rut_mensajero" es obligatorio'}), 400
+        
+        from app.models import RolUsuario
+        mensajero = Usuario.query.filter_by(
+            rut=rut_mensajero,
+            rol=RolUsuario.MENSAJERO,
+            activo=True
+        ).first()
+        
+        if not mensajero:
+            return jsonify({'error': f'Mensajero con RUT {rut_mensajero} no encontrado o no está activo'}), 404
+        
+        activo.rut_mensajero = rut_mensajero
+        activo.tiempo_asignacion = datetime.utcnow()
+        activo.updated_at = datetime.utcnow()
+        
+        # Registrar log
+        custody_log = CustodyLog(
+            id_activo=id_activo,
+            rut_responsable=rut_actual,
+            estado_instante=activo.estado_actual.value,
+            tipo_alerta='estándar',
+            is_offline_sync=False
+        )
+        db.session.add(custody_log)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Mensajero {rut_mensajero} asignado exitosamente',
+            'asset': activo.to_dict(),
+            'log': custody_log.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Error al asignar mensajero: {str(e)}'}), 500
+
+
+@packages_bp.route('/<id_activo>/incidencias', methods=['POST'])
+@jwt_required()
+def report_incidence(id_activo):
+    """
+    Reporta una incidencia para un paquete/activo
+    """
+    try:
+        rut_actual = get_jwt()
+        if not rut_actual:
+            return jsonify({'error': 'Token inválido'}), 401
+        
+        rut_actual = rut_actual.get('rut')
+        
+        activo = Activo.query.filter_by(id_activo=id_activo).first()
+        if not activo:
+            return jsonify({'error': f'Activo con ID {id_activo} no encontrado'}), 404
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Cuerpo de solicitud vacío'}), 400
+        
+        motivo = data.get('motivo')
+        descripcion = data.get('descripcion')
+        
+        if not motivo:
+            return jsonify({'error': 'El campo "motivo" es obligatorio'}), 400
+        if not descripcion:
+            return jsonify({'error': 'El campo "descripcion" es obligatorio'}), 400
+        
+        activo.is_blocked = True
+        
+        if activo.estado_actual != EstadoActivo.EN_DISPUTA:
+            activo.estado_actual = EstadoActivo.EN_DISPUTA
+        
+        activo.updated_at = datetime.utcnow()
+        
+        # Registrar log de incidencia
+        custody_log = CustodyLog(
+            id_activo=id_activo,
+            rut_responsable=rut_actual,
+            estado_instante=activo.estado_actual.value,
+            tipo_alerta='crítico',
+            is_offline_sync=False
+        )
+        db.session.add(custody_log)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Incidencia reportada exitosamente. El paquete ha sido bloqueado.',
+            'is_blocked': True,
+            'estado': activo.estado_actual.value,
+            'log': custody_log.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Error al reportar incidencia: {str(e)}'}), 500
+
+
+@packages_bp.route('/<id_activo>/incidencia', methods=['GET'])
+@jwt_required()
+def get_incidencia_details(id_activo):
+    """
+    Obtiene los detalles de la incidencia de un paquete bloqueado
+    """
+    try:
+        activo = Activo.query.filter_by(id_activo=id_activo).first()
+        if not activo:
+            return jsonify({'error': f'Activo con ID {id_activo} no encontrado'}), 404
+        
+        if not activo.is_blocked:
+            return jsonify({'error': 'El paquete no está bloqueado'}), 400
+        
+        # Buscar el log de incidencia (tipo_alerta='crítico')
+        log_incidencia = CustodyLog.query.filter_by(
+            id_activo=id_activo,
+            tipo_alerta='crítico'
+        ).order_by(CustodyLog.timestamp.desc()).first()
+        
+        if not log_incidencia:
+            return jsonify({'error': 'No se encontró el registro de incidencia'}), 404
+        
+        return jsonify({
+            'success': True,
+            'incidencia': {
+                'motivo': 'Reportado por operador',
+                'descripcion': f'Incidencia reportada el {log_incidencia.timestamp}',
+                'fecha': log_incidencia.timestamp.isoformat() if log_incidencia.timestamp else None,
+                'reportado_por': log_incidencia.rut_responsable
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener detalles de incidencia: {str(e)}'}), 500
+
+
+@packages_bp.route('/<id_activo>/tiempo-restante', methods=['GET'])
+@jwt_required()
+def get_tiempo_restante(id_activo):
+    """
+    Obtiene el tiempo restante para la asignación del mensajero (2 horas)
+    """
+    try:
+        activo = Activo.query.filter_by(id_activo=id_activo).first()
+        
+        if not activo:
+            return jsonify({'error': f'Activo con ID {id_activo} no encontrado'}), 404
+        
+        if not activo.tiempo_asignacion or not activo.rut_mensajero:
+            return jsonify({
+                'success': True,
+                'tiene_asignacion': False
+            }), 200
+        
+        tiempo_actual = datetime.utcnow()
+        tiempo_asignacion = activo.tiempo_asignacion
+        segundos_transcurridos = (tiempo_actual - tiempo_asignacion).total_seconds()
+        segundos_restantes = max(0, 7200 - segundos_transcurridos)
+        
+        return jsonify({
+            'success': True,
+            'tiene_asignacion': True,
+            'rut_mensajero': activo.rut_mensajero,
+            'tiempo_asignacion': tiempo_asignacion.isoformat(),
+            'segundos_restantes': int(segundos_restantes),
+            'expirado': segundos_restantes <= 0
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener tiempo restante: {str(e)}'}), 500

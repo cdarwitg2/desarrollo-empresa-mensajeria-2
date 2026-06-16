@@ -15,12 +15,6 @@ jwt = JWTManager()
 def create_app(config_name='development'):
     """
     Factory para crear la aplicación Flask
-    
-    Args:
-        config_name (str): Nombre de la configuración ('development', 'production', 'testing')
-    
-    Returns:
-        Flask: Aplicación configurada
     """
     app = Flask(__name__)
     
@@ -30,15 +24,16 @@ def create_app(config_name='development'):
     # Inicializar extensiones
     db.init_app(app)
     jwt.init_app(app)
-    CORS(app)
+    CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
     
     # Registrar blueprints
     from app.auth import auth_bp
     from app.packages import packages_bp
     from app.admin import admin_bp
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(packages_bp)
-    app.register_blueprint(admin_bp)
+    
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(packages_bp)  # ✅ Sin url_prefix porque ya lo tiene
+    app.register_blueprint(admin_bp, url_prefix='/api/admin')
     
     # Crear tablas
     with app.app_context():

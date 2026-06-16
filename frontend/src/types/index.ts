@@ -31,6 +31,7 @@ export interface Package {
   timestamp_registro: string | null;
   created_at: string;
   updated_at: string;
+  is_blocked: boolean;
 }
 
 export interface LogEntry {
