@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Package, Truck, CheckCircle, MapPin, UserIcon, Loader2, X, AlertCircle } from 'lucide-react';
+import { LogOut, Package, Truck, CheckCircle, MapPin, UserIcon, Loader2, X, AlertCircle, Map } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api, updateActivoEstado } from '../services/api';
 import { Package as PackageType } from '../types';
+import DeliveryMap from './components/DeliveryMap';
 
 type TabType = 'pendientes' | 'ruta';
 type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'EN_ACOPIO_ASIGNADO' | 'EN_TRANSITO_ENTREGA' | 'ENTREGADO' | 'RECIBIDO' | 'EN_DISPUTA';
@@ -23,16 +24,16 @@ export const DriverDashboard: React.FC = () => {
   const [error, setError] = useState('');
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
+  const [showMap, setShowMap] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  // Función para mostrar notificaciones toast
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ type, message });
-    // Auto-cerrar después de 4 segundos
     setTimeout(() => {
       setToast(null);
     }, 4000);
@@ -47,7 +48,6 @@ export const DriverDashboard: React.FC = () => {
       setIsLoading(true);
       setError('');
 
-      // Obtener paquetes del mensajero según la pestaña activa
       let estado = '';
       if (activeTab === 'pendientes') {
         estado = 'EN_ACOPIO_ASIGNADO';
@@ -56,7 +56,6 @@ export const DriverDashboard: React.FC = () => {
       }
 
       const data = await api.get(`/api/packages/filter?estado=${estado}`);
-      // Filtrar solo los paquetes asignados a este mensajero
       const rutMensajero = user?.rut;
       const paquetesFiltrados = (data.packages || []).filter(
         (pkg: PackageType) => pkg.rut_mensajero === rutMensajero
@@ -71,7 +70,6 @@ export const DriverDashboard: React.FC = () => {
   };
 
   const handleRecoger = async (packageId: string, idActivo: string, integridad: string) => {
-    // Evitar múltiples solicitudes al mismo paquete
     if (actionLoading === packageId) return;
 
     setActionLoading(packageId);
@@ -104,7 +102,6 @@ export const DriverDashboard: React.FC = () => {
   };
 
   const handleEntregar = async (packageId: string, idActivo: string, integridad: string) => {
-    // Evitar múltiples solicitudes al mismo paquete
     if (actionLoading === packageId) return;
 
     setActionLoading(packageId);
@@ -121,6 +118,8 @@ export const DriverDashboard: React.FC = () => {
 
       showToast(`✅ Paquete "${packageId}" entregado exitosamente`, 'success');
       await fetchMessengerPackages();
+      setShowMap(false);
+      setSelectedPackage(null);
     } catch (err: any) {
       if (err.status === 409) {
         const errorMsg = 'Error de conflicto. El paquete puede haber sido modificado por otro usuario.';
@@ -134,6 +133,16 @@ export const DriverDashboard: React.FC = () => {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const handleSelectPackage = (pkg: PackageType) => {
+    setSelectedPackage(pkg);
+    setShowMap(true);
+  };
+
+  const handleCloseMap = () => {
+    setShowMap(false);
+    setSelectedPackage(null);
   };
 
   return (
@@ -165,7 +174,6 @@ export const DriverDashboard: React.FC = () => {
       {/* Sidebar */}
       <div className="w-64 border-r border-white/5 bg-[#0b111a] flex flex-col justify-between shrink-0">
         <div>
-          {/* Brand */}
           <div className="flex items-center gap-3 px-6 py-8">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
               <Package className="w-5 h-5 text-emerald-400" />
@@ -173,7 +181,6 @@ export const DriverDashboard: React.FC = () => {
             <h1 className="text-lg font-bold text-white tracking-wide">Portal Mensajero</h1>
           </div>
 
-          {/* Nav Links */}
           <nav className="px-4 space-y-2 mt-4">
             <button
               onClick={() => setActiveTab('pendientes')}
@@ -210,7 +217,6 @@ export const DriverDashboard: React.FC = () => {
           </nav>
         </div>
 
-        {/* User Profile Footer */}
         <div className="p-6 border-t border-white/5">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border border-white/10 text-emerald-400">
@@ -287,7 +293,12 @@ export const DriverDashboard: React.FC = () => {
               return (
                 <div
                   key={pkg.id}
-                  className="bg-[#131b26] rounded-2xl border border-white/5 p-6 hover:border-white/10 transition-all flex flex-col"
+                  className="bg-[#131b26] rounded-2xl border border-white/5 p-6 hover:border-white/10 transition-all flex flex-col cursor-pointer"
+                  onClick={() => {
+                    if (activeTab === 'ruta') {
+                      handleSelectPackage(pkg);
+                    }
+                  }}
                 >
                   <div className="flex justify-between items-start mb-4">
                     <h3 className="text-lg font-bold text-white truncate flex-1 mr-2">
@@ -320,11 +331,20 @@ export const DriverDashboard: React.FC = () => {
                         Integridad: {pkg.integridad || 'Intacto'}
                       </span>
                     </div>
+                    {activeTab === 'ruta' && (
+                      <div className="flex items-center gap-2 text-xs text-blue-400 mt-1">
+                        <Map className="w-3 h-3" />
+                        <span>Click para ver ubicación</span>
+                      </div>
+                    )}
                   </div>
 
                   {activeTab === 'pendientes' ? (
                     <button
-                      onClick={() => handleRecoger(pkg.id, pkg.id_activo, pkg.integridad)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRecoger(pkg.id, pkg.id_activo, pkg.integridad);
+                      }}
                       disabled={isActionLoading || isLoading}
                       className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -337,7 +357,10 @@ export const DriverDashboard: React.FC = () => {
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleEntregar(pkg.id, pkg.id_activo, pkg.integridad)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEntregar(pkg.id, pkg.id_activo, pkg.integridad);
+                      }}
                       disabled={isActionLoading || isLoading}
                       className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -355,6 +378,59 @@ export const DriverDashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+          {showMap && selectedPackage && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="bg-[#131b26] rounded-2xl border border-white/5 shadow-2xl w-full max-w-6xl max-h-[95vh] h-[95vh] overflow-hidden flex flex-col">
+          {/* Header del modal - más compacto */}
+          <div className="flex items-center justify-between p-4 border-b border-white/5 flex-shrink-0">
+            <div>
+              <h3 className="text-xl font-bold text-white">{selectedPackage.nombre}</h3>
+              <p className="text-sm text-slate-400">{selectedPackage.direccion_destino}</p>
+            </div>
+            <button
+              onClick={handleCloseMap}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-slate-400" />
+            </button>
+          </div>
+
+          {/* Mapa - ocupa todo el espacio disponible */}
+          <div className="flex-1 p-2 sm:p-4 min-h-[400px]">
+            <DeliveryMap
+              lat={selectedPackage.lat || -33.4489}
+              lng={selectedPackage.lng || -70.6693}
+              address={selectedPackage.direccion_destino}
+              packageName={selectedPackage.nombre}
+              onClose={handleCloseMap}
+            />
+          </div>
+
+          {/* Footer del modal - más compacto */}
+          <div className="flex items-center justify-between p-4 border-t border-white/5 flex-shrink-0">
+            <div className="text-sm text-slate-400">
+              <span className="font-medium text-white">{selectedPackage.rut_mensajero}</span>
+              {' '}· En ruta hacia destino
+            </div>
+            <button
+              onClick={() => {
+                handleEntregar(selectedPackage.id, selectedPackage.id_activo, selectedPackage.integridad);
+              }}
+              disabled={actionLoading === selectedPackage.id || isLoading}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {actionLoading === selectedPackage.id ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Truck className="w-4 h-4" />
+              )}
+              {actionLoading === selectedPackage.id ? 'Procesando...' : 'Marcar como Entregado'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 };

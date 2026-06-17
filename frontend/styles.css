@@ -1,0 +1,20 @@
+/* Estilos para marcadores de Leaflet */
+.origin-marker .leaflet-marker-icon {
+  filter: hue-rotate(200deg) saturate(2) brightness(1.2);
+}
+
+.destination-marker .leaflet-marker-icon {
+  filter: hue-rotate(340deg) saturate(2) brightness(1.2);
+}
+
+/* Personalizar el popup de Leaflet */
+.leaflet-popup-content-wrapper {
+  background: #1a2332 !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: white !important;
+}
+
+.leaflet-popup-tip {
+  background: #1a2332 !important;
+}

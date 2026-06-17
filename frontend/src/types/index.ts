@@ -32,6 +32,8 @@ export interface Package {
   created_at: string;
   updated_at: string;
   is_blocked: boolean;
+  lat?: number;        // 👈 Agregar
+  lng?: number; 
 }
 
 export interface LogEntry {
@@ -53,6 +55,10 @@ export interface ShipmentData {
   descripcion: string;
   direccion_origen: string;
   direccion_destino: string;
+  lat_origen?: number | null;
+  lng_origen?: number | null;
+  lat_destino?: number | null;
+  lng_destino?: number | null;
 }
 
 export interface LoginResponse {

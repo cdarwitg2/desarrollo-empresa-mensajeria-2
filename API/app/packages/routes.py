@@ -15,40 +15,38 @@ import string
 @jwt_required()
 def create_package():
     """
-    Crea un nuevo paquete/activo para trazabilidad
+    Crea un nuevo paquete/activo para trazabilidad con coordenadas
     
-    Extrae el rut del usuario remitente desde el token JWT.
-    
-    Body JSON requerido:
+    Body JSON:
         - nombre (str): Nombre del paquete
         - descripcion (str): Descripción del contenido
         - direccion_origen (str): Dirección de origen
         - direccion_destino (str): Dirección de destino
-    
-    Returns:
-        JSON con el ID del paquete creado o error
+        - lat_origen (float, opcional): Latitud de origen
+        - lng_origen (float, opcional): Longitud de origen
+        - lat_destino (float, opcional): Latitud de destino
+        - lng_destino (float, opcional): Longitud de destino
     """
     try:
-        # Obtener el rut del token JWT
         claims = get_jwt()
         rut_remitente = claims.get('rut')
         
         if not rut_remitente:
             return jsonify({'error': 'Token inválido'}), 401
         
-        # Obtener datos del body
         data = request.get_json()
-        
         if not data:
             return jsonify({'error': 'Cuerpo de solicitud vacío'}), 400
         
-        # Extraer campos
         nombre = data.get('nombre', '').strip()
         descripcion = data.get('descripcion', '').strip()
         direccion_origen = data.get('direccion_origen', '').strip()
         direccion_destino = data.get('direccion_destino', '').strip()
+        lat_origen = data.get('lat_origen')
+        lng_origen = data.get('lng_origen')
+        lat_destino = data.get('lat_destino')
+        lng_destino = data.get('lng_destino')
         
-        # Validar que ningún campo esté vacío
         if not nombre:
             return jsonify({'error': 'El campo "nombre" es obligatorio'}), 400
         if not descripcion:
@@ -58,22 +56,21 @@ def create_package():
         if not direccion_destino:
             return jsonify({'error': 'El campo "direccion_destino" es obligatorio'}), 400
         
-        # Verificar que el usuario remitente existe
         usuario = Usuario.query.filter_by(rut=rut_remitente).first()
         if not usuario:
             return jsonify({'error': 'Usuario remitente no encontrado'}), 404
         
-        # Crear el nuevo activo
         nuevo_activo = Activo(
             nombre=nombre,
             descripcion=descripcion,
             direccion_origen=direccion_origen,
             direccion_destino=direccion_destino,
             estado_actual=EstadoActivo.SOLICITADO,
-            rut_remitente=rut_remitente
+            rut_remitente=rut_remitente,
+            lat=lat_destino,  # Guardamos la latitud del destino para el mensajero
+            lng=lng_destino   # Guardamos la longitud del destino para el mensajero
         )
         
-        # Guardar en BD
         db.session.add(nuevo_activo)
         db.session.commit()
         
@@ -284,6 +281,9 @@ def update_package_status(id_activo):
     """
     Actualiza el estado de un paquete y registra automáticamente en CustodyLog
     Valida la transición según la máquina de estados.
+    
+    IMPORTANTE: Cuando un paquete llega a EN_ACOPIO, se limpia el rut_mensajero
+    para que el operador pueda asignar un nuevo mensajero desde la pestaña de acopio.
     """
     try:
         claims = get_jwt()
@@ -351,10 +351,8 @@ def update_package_status(id_activo):
             EstadoActivo.RECIBIDO: []
         }
         
-        # Si el estado actual no existe (es nuevo), asumimos que era SOLICITADO o no tiene restricciones para el primer salto
         estados_permitidos = transiciones_validas.get(estado_actual, []) if estado_actual else [EstadoActivo.SOLICITADO, EstadoActivo.EN_TRANSITO]
         
-        # Opcional: permitir volver al mismo estado si solo queremos actualizar integridad (idempotencia parcial)
         if nuevo_estado_enum != estado_actual and nuevo_estado_enum not in estados_permitidos:
             return jsonify({
                 'error': f'Transición inválida. Un paquete en estado {estado_actual.value if estado_actual else "N/A"} no puede pasar a {nuevo_estado_enum.value}.'
@@ -367,10 +365,19 @@ def update_package_status(id_activo):
             tipo_alerta = 'resolución'
         
         estado_anterior = activo.estado_actual.value if activo.estado_actual else 'Desconocido'
+        
         activo.estado_actual = nuevo_estado_enum
         
-        if rut_mensajero and (nuevo_estado_enum == EstadoActivo.EN_TRANSITO or nuevo_estado_enum == EstadoActivo.EN_TRANSITO_ENTREGA):
+        if nuevo_estado_enum == EstadoActivo.EN_ACOPIO:
+            activo.rut_mensajero = None
+            activo.tiempo_asignacion = None
+        
+        # Asignar mensajero solo si el nuevo estado lo requiere y se proporciona
+        if rut_mensajero and nuevo_estado_enum in [EstadoActivo.EN_TRANSITO, EstadoActivo.EN_TRANSITO_ENTREGA, EstadoActivo.EN_ACOPIO_ASIGNADO]:
             activo.rut_mensajero = rut_mensajero
+            # Si es EN_ACOPIO_ASIGNADO, registrar tiempo de asignación
+            if nuevo_estado_enum == EstadoActivo.EN_ACOPIO_ASIGNADO:
+                activo.tiempo_asignacion = datetime.utcnow()
         
         if integridad:
             activo.integridad = integridad

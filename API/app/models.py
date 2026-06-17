@@ -151,6 +151,10 @@ class Activo(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Coordenadas para Mapas y Geolocalización (opcional, puede ser nulo si no se captura o falla la geolocalización)
+    lat = db.Column(db.Float, nullable=True)
+    lng = db.Column(db.Float, nullable=True)
+
     # Campos de Contingencia (Hardware Falla)
     token_contingencia = db.Column(db.String(6), nullable=True)
     token_expira = db.Column(db.DateTime, nullable=True)
@@ -199,7 +203,9 @@ class Activo(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'token_contingencia': self.token_contingencia,
             'tiempo_asignacion': self.tiempo_asignacion.isoformat() if self.tiempo_asignacion else None,
-            'is_blocked': self.is_blocked
+            'is_blocked': self.is_blocked,
+            'lat': self.lat,
+            'lng': self.lng
         }
 
 

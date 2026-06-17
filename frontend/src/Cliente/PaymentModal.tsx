@@ -1,149 +1,207 @@
 import React, { useState } from 'react';
-import { X, CreditCard, Loader, CheckCircle } from 'lucide-react';
-
-import { api } from '../services/api';
-import { ShipmentData } from '../types';
+import { X, CreditCard, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+import { ShipmentData } from './ShipmentForm';
 
 interface PaymentModalProps {
-  shipmentData: ShipmentData;
+  isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  shipmentData: ShipmentData;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
-  shipmentData,
+  isOpen,
   onClose,
   onSuccess,
+  shipmentData,
 }) => {
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardName, setCardName] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
+  const [cvv, setCvv] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  const handleConfirmPayment = async () => {
-    setIsProcessing(true);
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError('');
 
-    try {
-      await api.post('/api/packages/create', shipmentData);
-
-      // Mostrar estado de éxito brevemente
-      setIsSuccess(true);
-      setTimeout(() => {
-        onSuccess();
-      }, 1500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-      setIsProcessing(false);
+    // Validación básica
+    if (!cardNumber || cardNumber.replace(/\s/g, '').length < 16) {
+      setError('Número de tarjeta inválido');
+      return;
     }
+    if (!cardName.trim()) {
+      setError('Nombre del titular es obligatorio');
+      return;
+    }
+    if (!expiryDate || expiryDate.length < 5) {
+      setError('Fecha de expiración inválida');
+      return;
+    }
+    if (!cvv || cvv.length < 3) {
+      setError('CVV inválido');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    // Simular procesamiento de pago
+    setTimeout(() => {
+      setIsProcessing(false);
+      onSuccess();
+    }, 2000);
+  };
+
+  const formatCardNumber = (value: string) => {
+    const v = value.replace(/\s/g, '').replace(/\D/g, '');
+    const parts = v.match(/.{1,4}/g);
+    return parts ? parts.join(' ') : v;
+  };
+
+  const formatExpiryDate = (value: string) => {
+    const v = value.replace(/\D/g, '');
+    if (v.length >= 2) {
+      return v.slice(0, 2) + '/' + v.slice(2, 4);
+    }
+    return v;
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-[#131b26] rounded-2xl border border-white/5 shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between p-6 border-b border-white/5">
           <div className="flex items-center gap-3">
-            <CreditCard className="w-6 h-6 text-blue-400" />
-            <h2 className="text-2xl font-bold text-white">Confirmar Pago</h2>
+            <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
+              <CreditCard className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Pago de Envío</h3>
+              <p className="text-xs text-slate-400">Resumen del envío</p>
+            </div>
           </div>
-          {!isProcessing && !isSuccess && (
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-white transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          )}
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-white/5 transition-colors"
+          >
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
         </div>
 
-        {/* Content */}
-        {!isSuccess ? (
-          <div className="space-y-6">
-            {/* Resumen del Envío */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-                Resumen del Envío
-              </h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Paquete:</span>
-                  <span className="text-white font-medium">{shipmentData.nombre}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Origen:</span>
-                  <span className="text-white font-medium text-right">
-                    {shipmentData.direccion_origen}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Destino:</span>
-                  <span className="text-white font-medium text-right">
-                    {shipmentData.direccion_destino}
-                  </span>
-                </div>
-              </div>
+        {/* Resumen del envío */}
+        <div className="p-6 border-b border-white/5 bg-white/5">
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Paquete:</span>
+              <span className="text-white font-medium">{shipmentData.nombre}</span>
             </div>
-
-            {/* Divider */}
-            <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-
-            {/* Payment Simulation */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-                Método de Pago
-              </h3>
-              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                <div className="space-y-2 text-sm">
-                  <p className="text-slate-400">Transferencia Simulada</p>
-                  <p className="text-white font-mono">●●●● ●●●● ●●●● 4242</p>
-                </div>
-              </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Origen:</span>
+              <span className="text-white truncate max-w-[200px]">{shipmentData.direccion_origen}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Destino:</span>
+              <span className="text-white truncate max-w-[200px]">{shipmentData.direccion_destino}</span>
+            </div>
+            <div className="flex justify-between pt-2 border-t border-white/5">
+              <span className="text-slate-400">Total:</span>
+              <span className="text-emerald-400 font-bold">$5.990 CLP</span>
+            </div>
+          </div>
+        </div>
 
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 flex items-center gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full" />
-                <p className="text-red-400 text-sm">{error}</p>
+        {/* Formulario de pago */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {error && (
+            <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400" />
+              <p className="text-red-400 text-sm">{error}</p>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Número de Tarjeta
+            </label>
+            <input
+              type="text"
+              value={cardNumber}
+              onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+              placeholder="1234 5678 9012 3456"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              maxLength={19}
+              disabled={isProcessing}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Nombre del Titular
+            </label>
+            <input
+              type="text"
+              value={cardName}
+              onChange={(e) => setCardName(e.target.value)}
+              placeholder="Juan Pérez"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              disabled={isProcessing}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Fecha Expiración
+              </label>
+              <input
+                type="text"
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(formatExpiryDate(e.target.value))}
+                placeholder="MM/YY"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                maxLength={5}
+                disabled={isProcessing}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                CVV
+              </label>
+              <input
+                type="password"
+                value={cvv}
+                onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
+                placeholder="123"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                maxLength={4}
+                disabled={isProcessing}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <Lock className="w-3 h-3" />
+            <span>Pago seguro. Tus datos están protegidos.</span>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isProcessing}
+            className="w-full px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-semibold rounded-lg transition-all transform hover:scale-[1.02] shadow-lg hover:shadow-emerald-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            {isProcessing ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Procesando pago...</span>
               </div>
+            ) : (
+              'Pagar $5.990 CLP'
             )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
-              <button
-                onClick={onClose}
-                disabled={isProcessing}
-                className="flex-1 px-4 py-3 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmPayment}
-                disabled={isProcessing}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin" />
-                    Procesando...
-                  </>
-                ) : (
-                  'Confirmar Pago'
-                )}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-8 space-y-4">
-            <CheckCircle className="w-16 h-16 text-green-400 animate-bounce" />
-            <div className="text-center space-y-2">
-              <h3 className="text-xl font-bold text-white">¡Pago Confirmado!</h3>
-              <p className="text-slate-300 text-sm">
-                Tu paquete ha sido registrado en estado SOLICITADO
-              </p>
-            </div>
-          </div>
-        )}
+          </button>
+        </form>
       </div>
     </div>
   );
