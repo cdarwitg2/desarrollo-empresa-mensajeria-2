@@ -372,60 +372,6 @@ export const ShipmentForm: React.FC<ShipmentFormProps> = ({ onSuccess }) => {
                 )}
               </div>
 
-              {/* Buscador de Direcciones (Geocodificación Directa) */}
-              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                <p className="text-xs font-medium text-slate-400 mb-3 uppercase tracking-wider">
-                  🔍 Buscar ubicación
-                </p>
-                <div className="flex gap-2">
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && searchQuery.trim()) {
-                          if (mapMode) {
-                            searchLocation(searchQuery, mapMode);
-                          } else {
-                            setSearchError('Selecciona primero Origen o Destino en el mapa');
-                          }
-                        }
-                      }}
-                      placeholder="Buscar dirección..."
-                      className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-sm"
-                      disabled={isSubmitting || isSearching}
-                    />
-                    {isSearching && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (searchQuery.trim()) {
-                        if (mapMode) {
-                          searchLocation(searchQuery, mapMode);
-                        } else {
-                          setSearchError('Selecciona primero Origen o Destino en el mapa');
-                        }
-                      }
-                    }}
-                    disabled={!searchQuery.trim() || isSearching || isSubmitting}
-                    className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Search className="w-4 h-4" />
-                  </button>
-                </div>
-                {searchError && (
-                  <p className="text-xs text-red-400 mt-2">{searchError}</p>
-                )}
-                <p className="text-xs text-slate-500 mt-2">
-                  💡 Escribe una dirección y presiona Enter (debes tener seleccionado Origen o Destino)
-                </p>
-              </div>
 
               {/* Dirección de Origen */}
               <div>
