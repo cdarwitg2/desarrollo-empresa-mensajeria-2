@@ -112,25 +112,18 @@ class Usuario(db.Model):
         self.rol = RolUsuario.REMITENTE
 
     def to_dict(self):
+        """Convierte el usuario a diccionario"""
         return {
-            'id': self.id_activo,
-            'id_activo': self.id_activo,
-            'nombre': self.nombre or f"Activo {self.id_activo}",
-            'descripcion': self.descripcion,
-            'valor_estimado': self.valor_estimado,
-            'direccion_origen': self.direccion_origen,
-            'direccion_destino': self.direccion_destino,
-            'estado_actual': self.estado_actual.value if self.estado_actual else None,
-            'integridad': self.integridad,
-            'rut_remitente': self.rut_remitente,
-            'rut_mensajero': self.rut_mensajero,
-            'timestamp_registro': self.timestamp_registro.isoformat() if self.timestamp_registro else None,
+            'rut': self.rut,
+            'nombre_completo': self.nombre_completo,
+            'rol': self.rol.value if self.rol else None,
+            'roles': self.get_roles_list(),
+            'activo': self.activo,
+            'ultima_conexion': self.ultima_conexion.isoformat() if self.ultima_conexion else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'token_contingencia': self.token_contingencia,
-            'tiempo_asignacion': self.tiempo_asignacion.isoformat() if self.tiempo_asignacion else None,
-            'is_blocked': self.is_blocked
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
 
 class Activo(db.Model):
     __tablename__ = 'activos'

@@ -1,11 +1,11 @@
 """
-Rutas administrativas (CRUD de usuarios)
+Rutas administrativas (CRUD de usuarios y paquetes)
 Solo accesibles por usuarios con rol 'administrador'
 """
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 from . import admin_bp
-from app.models import Usuario
+from app.models import Usuario, Activo
 from app import db
 from werkzeug.security import generate_password_hash
 
@@ -36,11 +36,9 @@ def list_users():
         JSON con lista de usuarios y sus detalles
     """
     try:
-        # Validar que sea administrador
         if not require_admin():
             return jsonify({'error': 'Acceso denegado. Se requiere rol de administrador'}), 403
         
-        # Obtener todos los usuarios
         usuarios = Usuario.query.all()
         
         return jsonify({
@@ -65,29 +63,25 @@ def create_user():
         - rut (str): RUT del usuario (formato: 12345678-9)
         - nombre_completo (str): Nombre completo del usuario
         - password (str): Contraseña en texto plano
-        - roles (list or str): Roles del usuario (ej: ['operador'] o 'operador,analista')
+        - rol (str): Rol del usuario (Remitente, Mensajero, Acopio, Analista, Administrador)
     
     Returns:
         JSON con confirmación y detalles del usuario creado
     """
     try:
-        # Validar que sea administrador
         if not require_admin():
             return jsonify({'error': 'Acceso denegado. Se requiere rol de administrador'}), 403
         
-        # Obtener datos del body
         data = request.get_json()
         
         if not data:
             return jsonify({'error': 'Cuerpo de solicitud vacío'}), 400
         
-        # Extraer campos
         rut = data.get('rut', '').strip()
         nombre_completo = data.get('nombre_completo', '').strip()
         password = data.get('password', '')
-        roles = data.get('roles', ['usuario'])
+        rol = data.get('rol', 'Remitente')
         
-        # Validar que los campos requeridos estén presentes
         if not rut:
             return jsonify({'error': 'El campo "rut" es obligatorio'}), 400
         if not nombre_completo:
@@ -95,27 +89,30 @@ def create_user():
         if not password:
             return jsonify({'error': 'El campo "password" es obligatorio'}), 400
         
-        # Verificar que el usuario no exista ya
         usuario_existente = Usuario.query.filter_by(rut=rut).first()
         if usuario_existente:
             return jsonify({'error': f'El usuario con RUT {rut} ya existe'}), 400
         
-        # Crear nuevo usuario
+        # Mapear rol string a enum
+        from app.models import RolUsuario
+        rol_mapping = {
+            'Remitente': RolUsuario.REMITENTE,
+            'Mensajero': RolUsuario.MENSAJERO,
+            'Acopio': RolUsuario.ACOPIO,
+            'Analista': RolUsuario.ANALISTA,
+            'Administrador': RolUsuario.ADMINISTRADOR
+        }
+        
+        rol_enum = rol_mapping.get(rol, RolUsuario.REMITENTE)
+        
         nuevo_usuario = Usuario(
             rut=rut,
-            nombre_completo=nombre_completo
+            nombre_completo=nombre_completo,
+            rol=rol_enum
         )
         
-        # Encriptar y asignar contraseña
         nuevo_usuario.set_password(password)
         
-        # Asignar roles
-        if isinstance(roles, str):
-            nuevo_usuario.set_roles(roles)
-        else:
-            nuevo_usuario.set_roles(roles)
-        
-        # Guardar en BD
         db.session.add(nuevo_usuario)
         db.session.commit()
         
@@ -144,53 +141,54 @@ def update_user(rut):
     Body JSON (campos opcionales):
         - nombre_completo (str): Nuevo nombre del usuario
         - password (str): Nueva contraseña
-        - roles (list or str): Nuevos roles del usuario
+        - rol (str): Nuevo rol del usuario
         - activo (bool): Estado del usuario
     
     Returns:
         JSON con confirmación y detalles del usuario actualizado
     """
     try:
-        # Validar que sea administrador
         if not require_admin():
             return jsonify({'error': 'Acceso denegado. Se requiere rol de administrador'}), 403
         
-        # Obtener el admin autenticado
         claims = get_jwt()
         rut_admin = claims.get('rut')
         
-        # Validar que no intente modificarse a sí mismo
         if rut == rut_admin:
             return jsonify({
-                'error': 'No puedes degradar ni eliminar tu propia cuenta de administrador'
+                'error': 'No puedes modificar tu propia cuenta de administrador'
             }), 400
         
-        # Obtener datos del body
         data = request.get_json()
         
         if not data:
             return jsonify({'error': 'Cuerpo de solicitud vacío'}), 400
         
-        # Buscar el usuario
         usuario = Usuario.query.filter_by(rut=rut).first()
         
         if not usuario:
             return jsonify({'error': f'Usuario con RUT {rut} no encontrado'}), 404
         
-        # Actualizar campos si se proporcionan
         if 'nombre_completo' in data and data['nombre_completo']:
             usuario.nombre_completo = data['nombre_completo'].strip()
         
         if 'password' in data and data['password']:
             usuario.set_password(data['password'])
         
-        if 'roles' in data:
-            usuario.set_roles(data['roles'])
+        if 'rol' in data:
+            from app.models import RolUsuario
+            rol_mapping = {
+                'Remitente': RolUsuario.REMITENTE,
+                'Mensajero': RolUsuario.MENSAJERO,
+                'Acopio': RolUsuario.ACOPIO,
+                'Analista': RolUsuario.ANALISTA,
+                'Administrador': RolUsuario.ADMINISTRADOR
+            }
+            usuario.rol = rol_mapping.get(data['rol'], RolUsuario.REMITENTE)
         
         if 'activo' in data:
             usuario.activo = bool(data['activo'])
         
-        # Guardar cambios
         db.session.commit()
         
         return jsonify({
@@ -219,27 +217,22 @@ def delete_user(rut):
         JSON con confirmación de eliminación
     """
     try:
-        # Validar que sea administrador
         if not require_admin():
             return jsonify({'error': 'Acceso denegado. Se requiere rol de administrador'}), 403
         
-        # Obtener el admin autenticado
         claims = get_jwt()
         rut_admin = claims.get('rut')
         
-        # Validar que no intente eliminarse a sí mismo
         if rut == rut_admin:
             return jsonify({
-                'error': 'No puedes degradar ni eliminar tu propia cuenta de administrador'
+                'error': 'No puedes eliminar tu propia cuenta de administrador'
             }), 400
         
-        # Buscar el usuario
         usuario = Usuario.query.filter_by(rut=rut).first()
         
         if not usuario:
             return jsonify({'error': f'Usuario con RUT {rut} no encontrado'}), 404
         
-        # Eliminar usuario
         db.session.delete(usuario)
         db.session.commit()
         
@@ -251,3 +244,74 @@ def delete_user(rut):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Error al eliminar el usuario: {str(e)}'}), 500
+
+
+# ============================================================
+# ENDPOINTS ADMINISTRATIVOS PARA PAQUETES
+# ============================================================
+
+@admin_bp.route('/packages', methods=['GET'])
+@jwt_required()
+def list_packages():
+    """
+    Obtiene la lista completa de paquetes del sistema
+    
+    Solo accesible por usuarios con rol 'administrador'
+    
+    Returns:
+        JSON con lista de paquetes y sus detalles
+    """
+    try:
+        if not require_admin():
+            return jsonify({'error': 'Acceso denegado. Se requiere rol de administrador'}), 403
+        
+        # Ordenar por fecha de creación descendente
+        paquetes = Activo.query.order_by(Activo.created_at.desc()).all()
+        
+        return jsonify({
+            'success': True,
+            'total': len(paquetes),
+            'packages': [pkg.to_dict() for pkg in paquetes]
+        }), 200
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener paquetes: {str(e)}'}), 500
+
+
+@admin_bp.route('/packages/<id_activo>', methods=['DELETE'])
+@jwt_required()
+def delete_package(id_activo):
+    """
+    Elimina permanentemente un paquete del sistema
+    
+    Solo accesible por usuarios con rol 'administrador'
+    
+    Args:
+        id_activo (str): ID del paquete a eliminar
+    
+    Returns:
+        JSON con confirmación de eliminación
+    """
+    try:
+        if not require_admin():
+            return jsonify({'error': 'Acceso denegado. Se requiere rol de administrador'}), 403
+        
+        paquete = Activo.query.filter_by(id_activo=id_activo).first()
+        
+        if not paquete:
+            return jsonify({'error': f'Paquete con ID {id_activo} no encontrado'}), 404
+        
+        # Guardar información para el log
+        nombre_paquete = paquete.nombre
+        
+        db.session.delete(paquete)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Paquete "{nombre_paquete}" ({id_activo}) eliminado exitosamente'
+        }), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Error al eliminar el paquete: {str(e)}'}), 500

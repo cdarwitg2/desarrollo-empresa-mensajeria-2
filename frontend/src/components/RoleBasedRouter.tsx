@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { Dashboard } from '../Admin/Dashboard';
+import { AdminDashboard } from '../Admin/AdminDashboard';
 import { ClientDashboard } from '../Cliente/ClientDashboard';
 import { AnalystDashboard } from '../Analista/AnalystDashboard';
 import { OperatorDashboard } from '../Operador/OperatorDashboard';
@@ -47,9 +47,9 @@ export const RoleBasedRouter: React.FC = () => {
     return <OperatorDashboard />;
   }
 
-  // Si tiene rol de administrador, mostrar Dashboard con tabs
+  // Si tiene rol de administrador, mostrar AdminDashboard
   if (user.roles.includes('administrador')) {
-    return <Dashboard />;
+    return <AdminDashboard />;
   }
 
   // Fallback

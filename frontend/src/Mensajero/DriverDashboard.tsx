@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Package, Truck, CheckCircle, MapPin, UserIcon, Loader2, X, AlertCircle, Map } from 'lucide-react';
+import { 
+  LogOut, Package, Truck, CheckCircle, MapPin, UserIcon, Loader2, 
+  X, AlertCircle, Map, DoorOpen, Navigation, Clock, Users
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api, updateActivoEstado } from '../services/api';
 import { Package as PackageType } from '../types';
@@ -10,8 +13,20 @@ type TabType = 'pendientes' | 'ruta';
 type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'EN_ACOPIO_ASIGNADO' | 'EN_TRANSITO_ENTREGA' | 'ENTREGADO' | 'RECIBIDO' | 'EN_DISPUTA';
 
 interface ToastMessage {
-  type: 'success' | 'error' | 'info';
+  type: 'success' | 'error' | 'info' | 'warning';
   message: string;
+}
+
+interface TravelState {
+  progress: number;
+  timeRemaining: number;
+  isTraveling: boolean;
+  hasArrived: boolean;
+  knockAttempts: number;
+  maxAttempts: number;
+  isSuccess: boolean | null;
+  isComplete: boolean;
+  isKnocking: boolean;
 }
 
 export const DriverDashboard: React.FC = () => {
@@ -26,13 +41,29 @@ export const DriverDashboard: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
   const [showMap, setShowMap] = useState(false);
+  const [showKnockButton, setShowKnockButton] = useState(false);
+
+  const [travelState, setTravelState] = useState<TravelState>({
+    progress: 0,
+    timeRemaining: 10,
+    isTraveling: false,
+    hasArrived: false,
+    knockAttempts: 1,
+    maxAttempts: 3,
+    isSuccess: null,
+    isComplete: false,
+    isKnocking: false,
+  });
+
+  const travelIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+  const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
     setToast({ type, message });
     setTimeout(() => {
       setToast(null);
@@ -42,6 +73,13 @@ export const DriverDashboard: React.FC = () => {
   useEffect(() => {
     fetchMessengerPackages();
   }, [activeTab]);
+
+  useEffect(() => {
+    return () => {
+      if (travelIntervalRef.current) clearInterval(travelIntervalRef.current);
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    };
+  }, []);
 
   const fetchMessengerPackages = async () => {
     try {
@@ -66,6 +104,172 @@ export const DriverDashboard: React.FC = () => {
       showToast('Error al cargar los paquetes', 'error');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const startTravel = (pkg: PackageType) => {
+    setSelectedPackage(pkg);
+    setShowMap(true);
+    setShowKnockButton(false);
+    
+    setTravelState({
+      progress: 0,
+      timeRemaining: 10,
+      isTraveling: true,
+      hasArrived: false,
+      knockAttempts: 1,
+      maxAttempts: 3,
+      isSuccess: null,
+      isComplete: false,
+      isKnocking: false,
+    });
+
+    showToast('🚗 Iniciando viaje hacia el destino...', 'info');
+
+    let timeLeft = 10;
+    let progressValue = 0;
+
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    progressIntervalRef.current = setInterval(() => {
+      progressValue += 1;
+      if (progressValue <= 100) {
+        setTravelState(prev => ({
+          ...prev,
+          progress: progressValue,
+        }));
+      }
+    }, 100);
+
+    if (travelIntervalRef.current) clearInterval(travelIntervalRef.current);
+    travelIntervalRef.current = setInterval(() => {
+      timeLeft -= 1;
+      
+      setTravelState(prev => ({
+        ...prev,
+        timeRemaining: timeLeft,
+      }));
+
+      if (timeLeft > 0 && timeLeft % 3 === 0) {
+        const progressPercent = Math.round(((10 - timeLeft) / 10) * 100);
+        showToast(`🚚 Viaje en progreso... ${progressPercent}%`, 'info');
+      }
+
+      if (timeLeft <= 0) {
+        if (travelIntervalRef.current) clearInterval(travelIntervalRef.current);
+        if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+        
+        setTravelState(prev => ({
+          ...prev,
+          isTraveling: false,
+          hasArrived: true,
+          progress: 100,
+          timeRemaining: 0,
+        }));
+        
+        setShowKnockButton(true);
+        showToast('📍 ¡Has llegado al destino! Toca la puerta', 'success');
+      }
+    }, 1000);
+  };
+
+  const getSuccessThreshold = (attempts: number): number => {
+    if (attempts >= 3) return 1.0;
+    if (attempts === 2) return 0.66;
+    return 0.33;
+  };
+
+  const handleKnockDoor = async () => {
+    if (travelState.isKnocking) return;
+    if (travelState.knockAttempts > 3) return;
+    if (travelState.isSuccess) return;
+    if (travelState.isComplete) return;
+
+    setTravelState(prev => ({ ...prev, isKnocking: true }));
+    setShowKnockButton(false);
+
+    showToast('🔔 Tocando la puerta...', 'info');
+
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    const currentAttempts = travelState.knockAttempts;
+    const threshold = getSuccessThreshold(currentAttempts);
+    const randomValue = Math.random();
+    const isSuccess = randomValue < threshold;
+
+    console.log(`🔍 Intento ${currentAttempts}: random=${randomValue.toFixed(3)}, umbral=${threshold.toFixed(3)}, éxito=${isSuccess}`);
+
+    if (isSuccess) {
+      setTravelState(prev => ({
+        ...prev,
+        isSuccess: true,
+        isComplete: true,
+        knockAttempts: 0,
+        isKnocking: false,
+      }));
+      setShowKnockButton(false);
+      showToast('🚪 ¡El cliente ha salido! Entrega el paquete', 'success');
+    } else {
+      const newAttempts = currentAttempts + 1;
+      
+      if (newAttempts > 3) {
+        setTravelState(prev => ({
+          ...prev,
+          isSuccess: false,
+          isComplete: true,
+          knockAttempts: 0,
+          isKnocking: false,
+        }));
+        setShowKnockButton(false);
+        await reportIncidence(selectedPackage!);
+        showToast('⚠️ Nadie respondió después de 3 intentos. Incidencia reportada.', 'error');
+      } else {
+        setTravelState(prev => ({
+          ...prev,
+          knockAttempts: newAttempts,
+          isKnocking: false,
+        }));
+        
+        const nextThreshold = getSuccessThreshold(newAttempts) * 100;
+        showToast(
+          `🔔 Nadie responde, intenta de nuevo. (Intento ${newAttempts}/3, próxima probabilidad: ${Math.round(nextThreshold)}%)`,
+          'warning'
+        );
+        
+        setTimeout(() => {
+          if (!travelState.isSuccess && !travelState.isComplete) {
+            setShowKnockButton(true);
+          }
+        }, 1500);
+      }
+    }
+  };
+
+  const reportIncidence = async (pkg: PackageType) => {
+    try {
+      await api.post(`/api/packages/${pkg.id}/incidencias`, {
+        motivo: 'Intento de entrega fallido',
+        descripcion: `El mensajero intentó entregar el paquete ${pkg.nombre} (${pkg.id}) pero después de 3 intentos no hubo respuesta en la dirección.`,
+        package_id: pkg.id
+      });
+      
+      await fetchMessengerPackages();
+      setShowMap(false);
+      setSelectedPackage(null);
+      setShowKnockButton(false);
+      
+      setTravelState({
+        progress: 0,
+        timeRemaining: 10,
+        isTraveling: false,
+        hasArrived: false,
+        knockAttempts: 1,
+        maxAttempts: 3,
+        isSuccess: null,
+        isComplete: false,
+        isKnocking: false,
+      });
+    } catch (err: any) {
+      showToast('Error al reportar incidencia: ' + err.message, 'error');
     }
   };
 
@@ -120,6 +324,19 @@ export const DriverDashboard: React.FC = () => {
       await fetchMessengerPackages();
       setShowMap(false);
       setSelectedPackage(null);
+      setShowKnockButton(false);
+      
+      setTravelState({
+        progress: 0,
+        timeRemaining: 10,
+        isTraveling: false,
+        hasArrived: false,
+        knockAttempts: 1,
+        maxAttempts: 3,
+        isSuccess: null,
+        isComplete: false,
+        isKnocking: false,
+      });
     } catch (err: any) {
       if (err.status === 409) {
         const errorMsg = 'Error de conflicto. El paquete puede haber sido modificado por otro usuario.';
@@ -136,13 +353,52 @@ export const DriverDashboard: React.FC = () => {
   };
 
   const handleSelectPackage = (pkg: PackageType) => {
-    setSelectedPackage(pkg);
-    setShowMap(true);
+    if (travelState.isTraveling) {
+      if (travelIntervalRef.current) clearInterval(travelIntervalRef.current);
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      
+      setTravelState({
+        progress: 0,
+        timeRemaining: 10,
+        isTraveling: false,
+        hasArrived: false,
+        knockAttempts: 1,
+        maxAttempts: 3,
+        isSuccess: null,
+        isComplete: false,
+        isKnocking: false,
+      });
+      setShowKnockButton(false);
+    }
+    
+    startTravel(pkg);
   };
 
   const handleCloseMap = () => {
+    if (travelIntervalRef.current) clearInterval(travelIntervalRef.current);
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    
     setShowMap(false);
     setSelectedPackage(null);
+    setShowKnockButton(false);
+    
+    setTravelState({
+      progress: 0,
+      timeRemaining: 10,
+      isTraveling: false,
+      hasArrived: false,
+      knockAttempts: 1,
+      maxAttempts: 3,
+      isSuccess: null,
+      isComplete: false,
+      isKnocking: false,
+    });
+  };
+
+  const getProgressColor = (progress: number): string => {
+    if (progress < 33) return 'bg-red-500';
+    if (progress < 66) return 'bg-yellow-500';
+    return 'bg-emerald-500';
   };
 
   return (
@@ -155,11 +411,14 @@ export const DriverDashboard: React.FC = () => {
               ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400' 
               : toast.type === 'error'
               ? 'bg-red-500/20 border border-red-500/50 text-red-400'
+              : toast.type === 'warning'
+              ? 'bg-yellow-500/20 border border-yellow-500/50 text-yellow-400'
               : 'bg-blue-500/20 border border-blue-500/50 text-blue-400'
           }`}>
             {toast.type === 'success' && <CheckCircle className="w-5 h-5 flex-shrink-0" />}
             {toast.type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
-            {toast.type === 'info' && <Package className="w-5 h-5 flex-shrink-0" />}
+            {toast.type === 'warning' && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
+            {toast.type === 'info' && <Navigation className="w-5 h-5 flex-shrink-0" />}
             <span className="text-sm font-medium">{toast.message}</span>
             <button 
               onClick={() => setToast(null)} 
@@ -334,7 +593,7 @@ export const DriverDashboard: React.FC = () => {
                     {activeTab === 'ruta' && (
                       <div className="flex items-center gap-2 text-xs text-blue-400 mt-1">
                         <Map className="w-3 h-3" />
-                        <span>Click para ver ubicación</span>
+                        <span>Click para iniciar viaje</span>
                       </div>
                     )}
                   </div>
@@ -359,17 +618,39 @@ export const DriverDashboard: React.FC = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleEntregar(pkg.id, pkg.id_activo, pkg.integridad);
+                        if (!travelState.isTraveling && !travelState.isComplete) {
+                          handleSelectPackage(pkg);
+                        } else if (travelState.isSuccess) {
+                          handleEntregar(pkg.id, pkg.id_activo, pkg.integridad);
+                        }
                       }}
                       disabled={isActionLoading || isLoading}
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
+                        travelState.isSuccess
+                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                          : travelState.isComplete && !travelState.isSuccess
+                          ? 'bg-red-600 hover:bg-red-500 text-white cursor-not-allowed opacity-50'
+                          : 'bg-blue-600 hover:bg-blue-500 text-white'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       {isActionLoading ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : travelState.isSuccess ? (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          Entregar
+                        </>
+                      ) : travelState.isComplete && !travelState.isSuccess ? (
+                        <>
+                          <AlertCircle className="w-4 h-4" />
+                          Incidencia
+                        </>
                       ) : (
-                        <Truck className="w-4 h-4" />
+                        <>
+                          <Navigation className="w-4 h-4" />
+                          Iniciar Viaje
+                        </>
                       )}
-                      {isActionLoading ? 'Procesando...' : 'Entregado'}
                     </button>
                   )}
                 </div>
@@ -379,58 +660,143 @@ export const DriverDashboard: React.FC = () => {
         </div>
       </div>
 
-          {showMap && selectedPackage && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-        <div className="bg-[#131b26] rounded-2xl border border-white/5 shadow-2xl w-full max-w-6xl max-h-[95vh] h-[95vh] overflow-hidden flex flex-col">
-          {/* Header del modal - más compacto */}
-          <div className="flex items-center justify-between p-4 border-b border-white/5 flex-shrink-0">
-            <div>
-              <h3 className="text-xl font-bold text-white">{selectedPackage.nombre}</h3>
-              <p className="text-sm text-slate-400">{selectedPackage.direccion_destino}</p>
+      {/* Modal de Mapa con Viaje */}
+      {showMap && selectedPackage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[#131b26] rounded-2xl border border-white/5 shadow-2xl w-full max-w-6xl max-h-[95vh] h-[95vh] overflow-hidden flex flex-col">
+            {/* Header del modal */}
+            <div className="flex items-center justify-between p-4 border-b border-white/5 flex-shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-white">{selectedPackage.nombre}</h3>
+                <p className="text-sm text-slate-400">{selectedPackage.direccion_destino}</p>
+              </div>
+              <button
+                onClick={handleCloseMap}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
             </div>
-            <button
-              onClick={handleCloseMap}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5 text-slate-400" />
-            </button>
-          </div>
 
-          {/* Mapa - ocupa todo el espacio disponible */}
-          <div className="flex-1 p-2 sm:p-4 min-h-[400px]">
-            <DeliveryMap
-              lat={selectedPackage.lat || -33.4489}
-              lng={selectedPackage.lng || -70.6693}
-              address={selectedPackage.direccion_destino}
-              packageName={selectedPackage.nombre}
-              onClose={handleCloseMap}
-            />
-          </div>
+            {/* Progreso del viaje */}
+            {travelState.isTraveling && (
+              <div className="px-4 py-2 bg-white/5 border-b border-white/5 flex-shrink-0">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <Navigation className="w-4 h-4 text-blue-400 animate-pulse" />
+                    <span className="text-slate-300">Viaje en progreso...</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <Clock className="w-4 h-4 text-yellow-400" />
+                    <span className="text-yellow-400 font-mono">{travelState.timeRemaining}s</span>
+                  </div>
+                </div>
+                <div className="mt-2 w-full bg-slate-700 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(travelState.progress)}`}
+                    style={{ width: `${travelState.progress}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-slate-500 mt-1">
+                  <span>Origen</span>
+                  <span>{Math.round(travelState.progress)}%</span>
+                  <span>Destino</span>
+                </div>
+              </div>
+            )}
 
-          {/* Footer del modal - más compacto */}
-          <div className="flex items-center justify-between p-4 border-t border-white/5 flex-shrink-0">
-            <div className="text-sm text-slate-400">
-              <span className="font-medium text-white">{selectedPackage.rut_mensajero}</span>
-              {' '}· En ruta hacia destino
-            </div>
-            <button
-              onClick={() => {
-                handleEntregar(selectedPackage.id, selectedPackage.id_activo, selectedPackage.integridad);
-              }}
-              disabled={actionLoading === selectedPackage.id || isLoading}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {actionLoading === selectedPackage.id ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Truck className="w-4 h-4" />
+            {/* Mapa */}
+            <div className="flex-1 p-2 sm:p-4 min-h-[400px] relative">
+              <DeliveryMap
+                lat={selectedPackage.lat || -33.4489}
+                lng={selectedPackage.lng || -70.6693}
+                address={selectedPackage.direccion_destino}
+                packageName={selectedPackage.nombre}
+                onClose={handleCloseMap}
+                progress={travelState.progress}
+                isTraveling={travelState.isTraveling}
+              />
+
+              {/* Botón Tocar Puerta */}
+              {showKnockButton && !travelState.isComplete && !travelState.isSuccess && (
+                <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-[1000]">
+                  <button
+                    onClick={handleKnockDoor}
+                    disabled={travelState.isKnocking || travelState.knockAttempts > 3}
+                    className={`px-8 py-4 rounded-xl font-bold text-white transition-all transform hover:scale-105 shadow-lg flex items-center gap-3 ${
+                      travelState.isKnocking || travelState.knockAttempts > 3
+                        ? 'bg-slate-600 cursor-not-allowed opacity-50'
+                        : travelState.knockAttempts === 3
+                        ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/30'
+                        : 'bg-yellow-600 hover:bg-yellow-500 shadow-yellow-500/30'
+                    }`}
+                  >
+                    {travelState.isKnocking ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Tocando...
+                      </>
+                    ) : (
+                      <>
+                        <DoorOpen className="w-5 h-5" />
+                        Tocar Puerta
+                      </>
+                    )}
+                    <span className="ml-2 px-2 py-1 bg-black/30 rounded-lg text-xs font-mono">
+                      {travelState.knockAttempts}/3
+                    </span>
+                  </button>
+                </div>
               )}
-              {actionLoading === selectedPackage.id ? 'Procesando...' : 'Marcar como Entregado'}
-            </button>
+
+              {/* Mensaje de éxito - FONDO BLANCO */}
+              {travelState.isSuccess && (
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-white px-6 py-3 rounded-xl shadow-lg">
+                  <p className="text-slate-900 font-bold flex items-center gap-2">
+                    <Users className="w-5 h-5 text-emerald-600" />
+                    ¡El cliente ha salido! Entrega el paquete
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer del modal */}
+            <div className="flex items-center justify-between p-4 border-t border-white/5 flex-shrink-0">
+              <div className="text-sm text-slate-400">
+                <span className="font-medium text-white">{selectedPackage.rut_mensajero}</span>
+                {' '}· {travelState.isTraveling ? 'En viaje' : travelState.hasArrived ? 'En destino' : 'En ruta'}
+                {travelState.hasArrived && !travelState.isComplete && !travelState.isSuccess && (
+                  <span className="ml-2 text-yellow-400">🔔 Tocando puerta...</span>
+                )}
+              </div>
+              <div className="flex gap-3">
+                {travelState.isSuccess && (
+                  <button
+                    onClick={() => {
+                      handleEntregar(selectedPackage.id, selectedPackage.id_activo, selectedPackage.integridad);
+                    }}
+                    disabled={actionLoading === selectedPackage.id || isLoading}
+                    className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actionLoading === selectedPackage.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                    {actionLoading === selectedPackage.id ? 'Procesando...' : 'Entregar Paquete'}
+                  </button>
+                )}
+                <button
+                  onClick={handleCloseMap}
+                  className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition-all"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
     </div>
   );
 };
