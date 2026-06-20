@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Package, Info, Play, Loader2, AlertTriangle, FileText, X } from 'lucide-react';
-import { api, updateActivoEstado } from '../../services/api';
 import { Package as PackageType, LogEntry } from '../../types';
-
-type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'EN_ACOPIO_ASIGNADO' | 'EN_TRANSITO_ENTREGA' | 'ENTREGADO' | 'RECIBIDO' | 'EN_DISPUTA';
+import { StateType } from '../Operador.types';
+import { useBandejaPaquetes } from '../Operador.hooks';
 
 const normalizeState = (state: string): StateType => {
   return state.toUpperCase().replace('Á', 'A').replace('Ó', 'O').replace(' ', '_') as StateType;
@@ -27,12 +26,6 @@ interface BandejaPaquetesProps {
   setIsIncidenceModalOpen: (open: boolean) => void;
 }
 
-interface Mensajero {
-  rut: string;
-  nombre_completo: string;
-  activo: boolean;
-}
-
 const BandejaPaquetes: React.FC<BandejaPaquetesProps> = ({
   selectedPackage,
   setSelectedPackage,
@@ -48,116 +41,23 @@ const BandejaPaquetes: React.FC<BandejaPaquetesProps> = ({
   setContingencyToken,
   setIsIncidenceModalOpen,
 }) => {
-  const [packages, setPackages] = useState<PackageType[]>([]);
-  const [filter, setFilter] = useState('all');
-  const [mensajeros, setMensajeros] = useState<Mensajero[]>([]);
-
-  useEffect(() => {
-    fetchMensajeros();
-  }, []);
-
-  useEffect(() => {
-    fetchPackages();
-  }, [filter]);
-
-  useEffect(() => {
-    if (selectedPackage) {
-      fetchLogs(selectedPackage.id);
-    }
-  }, [selectedPackage]);
-
-  const fetchMensajeros = async () => {
-    try {
-      const data = await api.get('/api/packages/mensajeros');
-      setMensajeros(data.mensajeros || []);
-    } catch (err) {
-      console.error('Error al cargar mensajeros:', err);
-    }
-  };
-
-  const fetchPackages = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      setSelectedPackage(null);
-
-      if (filter === 'all') {
-        const [solicitados, enTransito] = await Promise.all([
-          api.get('/api/packages/filter?estado=SOLICITADO'),
-          api.get('/api/packages/filter?estado=EN_TRANSITO')
-        ]);
-        const combined = [...(solicitados.packages || []), ...(enTransito.packages || [])];
-        setPackages(combined);
-      } else {
-        const data = await api.get(`/api/packages/filter?estado=${filter}`);
-        setPackages(data.packages || []);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar paquetes');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchLogs = async (packageId: string) => {
-    try {
-      const data = await api.get(`/api/packages/${packageId}/logs`);
-      setLogs(data.logs || []);
-    } catch (err: any) {
-      if (err.status !== 404) {
-        console.error('Error al cargar logs:', err);
-      }
-      setLogs([]);
-    }
-  };
-
-  const handleAction = async (actionType: string) => {
-    if (!selectedPackage) return;
-
-    let newStatus: StateType = 'EN_TRANSITO';
-    if (actionType === 'INICIAR_TRANSPORTE') newStatus = 'EN_TRANSITO';
-    if (actionType === 'RECIBIR_ACOPIO') newStatus = 'EN_ACOPIO';
-
-    if (actionType === 'INICIAR_TRANSPORTE' && !rutMensajero.trim()) {
-      setError('Debes seleccionar un mensajero');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setError('');
-
-      const data = await updateActivoEstado(
-        selectedPackage.id_activo,
-        newStatus,
-        selectedPackage.integridad,
-        contingencyToken,
-        actionType === 'INICIAR_TRANSPORTE' ? rutMensajero : undefined
-      );
-
-      setSelectedPackage({
-        ...selectedPackage,
-        estado_actual: data.asset?.estado_actual || newStatus
-      });
-
-      setRutMensajero('');
-      setContingencyToken('');
-
-      await fetchLogs(selectedPackage.id);
-      await fetchPackages();
-      
-    } catch (err: any) {
-      if (err.status === 403) {
-        setError('El paquete está bloqueado. No se pueden realizar acciones.');
-      } else if (err.status === 409) {
-        setError(err.message || 'Error de conflicto de transición de estado');
-      } else {
-        setError(err.message || 'Error desconocido');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    packages,
+    filter,
+    setFilter,
+    mensajeros,
+    handleAction
+  } = useBandejaPaquetes(
+    selectedPackage,
+    setSelectedPackage,
+    setLogs,
+    setIsLoading,
+    setError,
+    rutMensajero,
+    setRutMensajero,
+    contingencyToken,
+    setContingencyToken
+  );
 
   const getAvailableTransitions = (currentState: string): { action: string; label: string }[] => {
     const normalized = normalizeState(currentState);

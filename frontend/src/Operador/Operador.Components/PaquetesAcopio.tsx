@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Package, Info, Loader2, AlertTriangle, FileText, X, UserCheck } from 'lucide-react';
-import { api, updateActivoEstado } from '../../services/api';
 import { Package as PackageType, LogEntry } from '../../types';
-
-type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'EN_ACOPIO_ASIGNADO' | 'EN_TRANSITO_ENTREGA' | 'ENTREGADO' | 'RECIBIDO' | 'EN_DISPUTA';
+import { StateType } from '../Operador.types';
+import { usePaquetesAcopio } from '../Operador.hooks';
 
 const normalizeState = (state: string): StateType => {
   return state.toUpperCase().replace('Á', 'A').replace('Ó', 'O').replace(' ', '_') as StateType;
@@ -27,12 +26,6 @@ interface PaquetesAcopioProps {
   setIsIncidenceModalOpen: (open: boolean) => void;
 }
 
-interface Mensajero {
-  rut: string;
-  nombre_completo: string;
-  activo: boolean;
-}
-
 const PaquetesAcopio: React.FC<PaquetesAcopioProps> = ({
   selectedPackage,
   setSelectedPackage,
@@ -48,109 +41,23 @@ const PaquetesAcopio: React.FC<PaquetesAcopioProps> = ({
   setContingencyToken,
   setIsIncidenceModalOpen,
 }) => {
-  const [packages, setPackages] = useState<PackageType[]>([]);
-  const [mensajeros, setMensajeros] = useState<Mensajero[]>([]);
-  const [filter, setFilter] = useState<'EN_ACOPIO' | 'EN_ACOPIO_ASIGNADO'>('EN_ACOPIO');
-
-  useEffect(() => {
-    fetchMensajeros();
-  }, []);
-
-  useEffect(() => {
-    fetchPackages();
-  }, [filter]);
-
-  useEffect(() => {
-    if (selectedPackage) {
-      fetchLogs(selectedPackage.id);
-    }
-  }, [selectedPackage]);
-
-  const fetchMensajeros = async () => {
-    try {
-      const data = await api.get('/api/packages/mensajeros');
-      setMensajeros(data.mensajeros || []);
-    } catch (err) {
-      console.error('Error al cargar mensajeros:', err);
-    }
-  };
-
-  const fetchPackages = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      setSelectedPackage(null);
-
-      const data = await api.get(`/api/packages/filter?estado=${filter}`);
-      setPackages(data.packages || []);
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar paquetes');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchLogs = async (packageId: string) => {
-    try {
-      const data = await api.get(`/api/packages/${packageId}/logs`);
-      setLogs(data.logs || []);
-    } catch (err: any) {
-      if (err.status !== 404) {
-        console.error('Error al cargar logs:', err);
-      }
-      setLogs([]);
-    }
-  };
-
-  const handleAsignarMensajero = async () => {
-    if (!selectedPackage) {
-      setError('No hay un paquete seleccionado');
-      return;
-    }
-
-    if (!rutMensajero.trim()) {
-      setError('Debes seleccionar un mensajero');
-      return;
-    }
-
-    const newStatus: StateType = 'EN_ACOPIO_ASIGNADO';
-
-    try {
-      setIsLoading(true);
-      setError('');
-
-      const data = await updateActivoEstado(
-        selectedPackage.id_activo,
-        newStatus,
-        selectedPackage.integridad,
-        contingencyToken,
-        rutMensajero
-      );
-
-      setSelectedPackage({
-        ...selectedPackage,
-        estado_actual: data.asset?.estado_actual || newStatus,
-        rut_mensajero: rutMensajero
-      });
-
-      setRutMensajero('');
-      setContingencyToken('');
-
-      await fetchLogs(selectedPackage.id);
-      await fetchPackages();
-      
-    } catch (err: any) {
-      if (err.status === 403) {
-        setError('El paquete está bloqueado. No se pueden realizar acciones.');
-      } else if (err.status === 409) {
-        setError(err.message || 'Error de conflicto de transición de estado');
-      } else {
-        setError(err.message || 'Error desconocido');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    packages,
+    mensajeros,
+    filter,
+    setFilter,
+    handleAsignarMensajero
+  } = usePaquetesAcopio(
+    selectedPackage,
+    setSelectedPackage,
+    setLogs,
+    setIsLoading,
+    setError,
+    rutMensajero,
+    setRutMensajero,
+    contingencyToken,
+    setContingencyToken
+  );
 
   const getStateGlow = (state: string): string => {
     switch (state) {

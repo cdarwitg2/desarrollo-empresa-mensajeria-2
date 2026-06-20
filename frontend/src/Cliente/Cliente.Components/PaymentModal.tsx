@@ -1,13 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { X, CreditCard, Lock, AlertCircle, CheckCircle } from 'lucide-react';
-import { ShipmentData } from './ShipmentForm';
-
-interface PaymentModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-  shipmentData: ShipmentData;
-}
+import { PaymentModalProps } from '../Cliente.types';
+import { usePaymentModal } from '../Cliente.hooks';
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
@@ -15,59 +9,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onSuccess,
   shipmentData,
 }) => {
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardName, setCardName] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [cvv, setCvv] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState('');
+  const {
+    cardNumber,
+    setCardNumber,
+    cardName,
+    setCardName,
+    expiryDate,
+    setExpiryDate,
+    cvv,
+    setCvv,
+    isProcessing,
+    error,
+    handleSubmit,
+    formatCardNumber,
+    formatExpiryDate
+  } = usePaymentModal(onSuccess);
 
   if (!isOpen) return null;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    // Validación básica
-    if (!cardNumber || cardNumber.replace(/\s/g, '').length < 16) {
-      setError('Número de tarjeta inválido');
-      return;
-    }
-    if (!cardName.trim()) {
-      setError('Nombre del titular es obligatorio');
-      return;
-    }
-    if (!expiryDate || expiryDate.length < 5) {
-      setError('Fecha de expiración inválida');
-      return;
-    }
-    if (!cvv || cvv.length < 3) {
-      setError('CVV inválido');
-      return;
-    }
-
-    setIsProcessing(true);
-
-    // Simular procesamiento de pago
-    setTimeout(() => {
-      setIsProcessing(false);
-      onSuccess();
-    }, 2000);
-  };
-
-  const formatCardNumber = (value: string) => {
-    const v = value.replace(/\s/g, '').replace(/\D/g, '');
-    const parts = v.match(/.{1,4}/g);
-    return parts ? parts.join(' ') : v;
-  };
-
-  const formatExpiryDate = (value: string) => {
-    const v = value.replace(/\D/g, '');
-    if (v.length >= 2) {
-      return v.slice(0, 2) + '/' + v.slice(2, 4);
-    }
-    return v;
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">

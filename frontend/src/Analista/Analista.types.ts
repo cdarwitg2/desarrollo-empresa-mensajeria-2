@@ -1,0 +1,1 @@
+export type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'ENTREGADO' | 'EN_DISPUTA' | 'RECIBIDO';

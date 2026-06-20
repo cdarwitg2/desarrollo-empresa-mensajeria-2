@@ -1,62 +1,42 @@
-import React, { useState} from 'react';
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, Package, AlertTriangle, FileText, UserIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
-import { Package as PackageType, LogEntry } from '../types';
-import BandejaPaquetes from './components/BandejaPaquetes';
-import PaquetesAcopio from './components/PaquetesAcopio';
-import PaquetesDisputa from './components/PaquetesDisputa';
-import IncidenceModal from './IncidenceModal';
-
-type TabType = 'bandeja' | 'acopio' | 'disputas';
+import BandejaPaquetes from './Operador.Components/BandejaPaquetes';
+import PaquetesAcopio from './Operador.Components/PaquetesAcopio';
+import PaquetesDisputa from './Operador.Components/PaquetesDisputa';
+import IncidenceModal from './Operador.Components/IncidenceModal';
+import { useOperatorDashboard } from './Operador.hooks';
 
 export const OperatorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<TabType>('bandeja');
 
-  // Estados compartidos
-  const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [isIncidenceModalOpen, setIsIncidenceModalOpen] = useState(false);
-  const [rutMensajero, setRutMensajero] = useState('');
-  const [contingencyToken, setContingencyToken] = useState('');
-
-  // Ref para forzar recarga de los componentes hijos
-  const [refreshKey, setRefreshKey] = useState(0);
+  const {
+    activeTab,
+    setActiveTab,
+    selectedPackage,
+    setSelectedPackage,
+    logs,
+    setLogs,
+    isLoading,
+    setIsLoading,
+    error,
+    setError,
+    isIncidenceModalOpen,
+    setIsIncidenceModalOpen,
+    rutMensajero,
+    setRutMensajero,
+    contingencyToken,
+    setContingencyToken,
+    refreshKey,
+    handleSubmitIncidence
+  } = useOperatorDashboard();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
-
-  const handleSubmitIncidence = async (incidenceData: { motivo: string; descripcion: string }) => {
-    if (!selectedPackage) return;
-
-    try {
-      setIsLoading(true);
-      await api.post(`/api/packages/${selectedPackage.id}/incidencias`, {
-        motivo: incidenceData.motivo,
-        descripcion: incidenceData.descripcion,
-        package_id: selectedPackage.id
-      });
-      
-      setIsIncidenceModalOpen(false);
-      
-      // Forzar recarga de los componentes hijos
-      setRefreshKey(prev => prev + 1);
-      
-    } catch (err: any) {
-      setError(err.message || 'Error al reportar incidencia');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
 
   return (
     <div className="flex h-screen bg-[#0b111a] text-slate-300 font-sans overflow-hidden">

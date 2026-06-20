@@ -92,6 +92,63 @@ def login():
         return jsonify({"error": f"Error en el servidor: {str(e)}"}), 500
 
 
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    """
+    Endpoint de registro de nuevos usuarios
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Request body es requerido"}), 400
+        
+        rut = data.get('rut', '').strip()
+        nombre = data.get('nombre', '').strip()
+        password = data.get('password', '')
+        
+        if not rut or not nombre or not password:
+            return jsonify({"error": "Todos los campos son requeridos"}), 400
+            
+        # Verificar si el usuario ya existe
+        usuario_existente = Usuario.query.filter_by(rut=rut).first()
+        if usuario_existente:
+            return jsonify({"error": "El RUT ya está registrado"}), 409
+            
+        # Crear nuevo usuario con rol de remitente/cliente por defecto
+        nuevo_usuario = Usuario(
+            rut=rut,
+            nombre_completo=nombre
+        )
+        nuevo_usuario.set_password(password)
+        nuevo_usuario.set_roles(['usuario'])
+        
+        db.session.add(nuevo_usuario)
+        db.session.commit()
+        
+        # Crear payload para el JWT
+        payload = {
+            'rut': nuevo_usuario.rut,
+            'nombre_completo': nuevo_usuario.nombre_completo,
+            'roles': nuevo_usuario.get_roles_list()
+        }
+        
+        # Generar token y hacer login automático
+        access_token = create_access_token(identity=nuevo_usuario.rut, additional_claims=payload)
+        nuevo_usuario.ultima_conexion = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'token': access_token,
+            'nombre': nuevo_usuario.nombre_completo,
+            'roles': nuevo_usuario.get_roles_list(),
+            'rut': nuevo_usuario.rut
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error en el servidor: {str(e)}"}), 500
+
+
 @auth_bp.route('/health', methods=['GET'])
 def health():
     """

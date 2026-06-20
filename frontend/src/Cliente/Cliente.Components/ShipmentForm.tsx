@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React from 'react';
 import { Package, AlertCircle, MapPin, Map, Target, X, Search, Loader2 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { PaymentModal } from './PaymentModal';
-import { api } from '../services/api';
+import { ShipmentFormProps } from '../Cliente.types';
+import { useShipmentForm } from '../Cliente.hooks';
 
 // Fix para los iconos de Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -37,21 +38,6 @@ const destinationIcon = L.icon({
   className: 'destination-marker',
 });
 
-interface ShipmentFormProps {
-  onSuccess?: () => void;
-}
-
-export interface ShipmentData {
-  nombre: string;
-  descripcion: string;
-  direccion_origen: string;
-  direccion_destino: string;
-  lat_origen?: number | null;
-  lng_origen?: number | null;
-  lat_destino?: number | null;
-  lng_destino?: number | null;
-}
-
 // Componente para manejar los clics en el mapa
 const MapClickHandler: React.FC<{
   mode: 'origen' | 'destino' | null;
@@ -72,216 +58,21 @@ export const ShipmentForm: React.FC<ShipmentFormProps> = ({ onSuccess }) => {
   const defaultLat = -38.7365;
   const defaultLng = -72.5904;
 
-  const [formData, setFormData] = useState<ShipmentData>({
-    nombre: '',
-    descripcion: '',
-    direccion_origen: '',
-    direccion_destino: '',
-    lat_origen: null,
-    lng_origen: null,
-    lat_destino: null,
-    lng_destino: null,
-  });
-
-  const [errors, setErrors] = useState<Partial<ShipmentData>>({});
-  const [successMessage, setSuccessMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [mapMode, setMapMode] = useState<'origen' | 'destino' | null>(null);
-  
-  // Estados para geocodificación
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState('');
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Geocodificación inversa: de coordenadas a dirección
-  const reverseGeocode = useCallback(async (lat: number, lng: number): Promise<string> => {
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
-      );
-      const data = await response.json();
-      
-      if (data && data.address) {
-        const addr = data.address;
-        const parts = [];
-        if (addr.road) parts.push(addr.road);
-        if (addr.house_number) parts.push(addr.house_number);
-        if (addr.suburb) parts.push(addr.suburb);
-        if (addr.city || addr.town || addr.village) {
-          parts.push(addr.city || addr.town || addr.village);
-        }
-        if (addr.state) parts.push(addr.state);
-        return parts.join(', ') || 'Dirección no disponible';
-      }
-      return 'Dirección no disponible';
-    } catch (error) {
-      console.error('Error en geocodificación inversa:', error);
-      return 'Dirección no disponible';
-    }
-  }, []);
-
-  // Geocodificación directa: de dirección a coordenadas
-  const searchLocation = useCallback(async (query: string, type: 'origen' | 'destino') => {
-    if (!query.trim()) return;
-
-    setIsSearching(true);
-    setSearchError('');
-
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
-      );
-      const data = await response.json();
-
-      if (data && data.length > 0) {
-        const result = data[0];
-        const lat = parseFloat(result.lat);
-        const lng = parseFloat(result.lon);
-        const displayName = result.display_name || query;
-
-        // Actualizar coordenadas y dirección
-        if (type === 'origen') {
-          setFormData((prev) => ({
-            ...prev,
-            lat_origen: lat,
-            lng_origen: lng,
-            direccion_origen: displayName,
-          }));
-        } else {
-          setFormData((prev) => ({
-            ...prev,
-            lat_destino: lat,
-            lng_destino: lng,
-            direccion_destino: displayName,
-          }));
-        }
-      } else {
-        setSearchError(`No se encontró la dirección: "${query}"`);
-      }
-    } catch (error) {
-      setSearchError('Error al buscar la dirección');
-      console.error('Error en geocodificación directa:', error);
-    } finally {
-      setIsSearching(false);
-    }
-  }, []);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    if (errors[name as keyof ShipmentData]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: '',
-      }));
-    }
-  };
-
-  const handleMapClick = useCallback(async (lat: number, lng: number) => {
-    if (!mapMode) return;
-
-    // Obtener dirección desde las coordenadas (geocodificación inversa)
-    const address = await reverseGeocode(lat, lng);
-
-    if (mapMode === 'origen') {
-      setFormData((prev) => ({
-        ...prev,
-        lat_origen: lat,
-        lng_origen: lng,
-        direccion_origen: address,
-      }));
-    } else if (mapMode === 'destino') {
-      setFormData((prev) => ({
-        ...prev,
-        lat_destino: lat,
-        lng_destino: lng,
-        direccion_destino: address,
-      }));
-    }
-    setMapMode(null);
-  }, [mapMode, reverseGeocode]);
-
-  const validateForm = (): boolean => {
-    const newErrors: Partial<ShipmentData> = {};
-
-    if (!formData.nombre.trim()) {
-      newErrors.nombre = 'El nombre del paquete es obligatorio';
-    }
-    if (!formData.descripcion.trim()) {
-      newErrors.descripcion = 'La descripción es obligatoria';
-    }
-    if (!formData.direccion_origen.trim()) {
-      newErrors.direccion_origen = 'La dirección de origen es obligatoria';
-    }
-    if (!formData.direccion_destino.trim()) {
-      newErrors.direccion_destino = 'La dirección de destino es obligatoria';
-    }
-    if (!formData.lat_origen || !formData.lng_origen) {
-      newErrors.lat_origen = 'Debes seleccionar la ubicación de origen en el mapa o buscarla';
-    }
-    if (!formData.lat_destino || !formData.lng_destino) {
-      newErrors.lat_destino = 'Debes seleccionar la ubicación de destino en el mapa o buscarla';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handlePaymentSuccess = async () => {
-    setIsSubmitting(true);
-    setSuccessMessage('');
-
-    try {
-      const payload = {
-        nombre: formData.nombre,
-        descripcion: formData.descripcion,
-        direccion_origen: formData.direccion_origen,
-        direccion_destino: formData.direccion_destino,
-        lat_origen: formData.lat_origen,
-        lng_origen: formData.lng_origen,
-        lat_destino: formData.lat_destino,
-        lng_destino: formData.lng_destino,
-      };
-
-      const response = await api.post('/api/packages/create', payload);
-
-      if (response.success) {
-        setSuccessMessage('✅ ¡Paquete creado exitosamente!');
-        setFormData({
-          nombre: '',
-          descripcion: '',
-          direccion_origen: '',
-          direccion_destino: '',
-          lat_origen: null,
-          lng_origen: null,
-          lat_destino: null,
-          lng_destino: null,
-        });
-        setErrors({});
-        setShowPaymentModal(false);
-        
-        setTimeout(() => {
-          setSuccessMessage('');
-          onSuccess?.();
-        }, 4000);
-      }
-    } catch (error: any) {
-      setErrors({ descripcion: error.message || 'Error al crear el paquete' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleProceedPayment = () => {
-    if (validateForm()) {
-      setShowPaymentModal(true);
-    }
-  };
+  const {
+    formData,
+    setFormData,
+    errors,
+    successMessage,
+    isSubmitting,
+    showPaymentModal,
+    setShowPaymentModal,
+    mapMode,
+    setMapMode,
+    handleInputChange,
+    handleMapClick,
+    handlePaymentSuccess,
+    handleProceedPayment
+  } = useShipmentForm(onSuccess);
 
   // Estilos CSS para los marcadores
   React.useEffect(() => {

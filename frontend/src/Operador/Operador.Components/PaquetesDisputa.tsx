@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Package, Info, AlertTriangle, FileText, X, Eye } from 'lucide-react';
-import { api } from '../../services/api';
 import { Package as PackageType, LogEntry } from '../../types';
+import { usePaquetesDisputa } from '../Operador.hooks';
 
 interface PaquetesDisputaProps {
   selectedPackage: PackageType | null;
@@ -24,59 +24,19 @@ const PaquetesDisputa: React.FC<PaquetesDisputaProps> = ({
   error,
   setError,
 }) => {
-  const [packages, setPackages] = useState<PackageType[]>([]);
-  const [isViewIncidenceModalOpen, setIsViewIncidenceModalOpen] = useState(false);
-  const [incidenciaDetalle, setIncidenciaDetalle] = useState<any>(null);
-
-  useEffect(() => {
-    fetchPackages();
-  }, []);
-
-  useEffect(() => {
-    if (selectedPackage) {
-      fetchLogs(selectedPackage.id);
-      if (selectedPackage.is_blocked) {
-        fetchIncidenciaDetails(selectedPackage.id);
-      }
-    }
-  }, [selectedPackage]);
-
-  const fetchPackages = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      setSelectedPackage(null);
-
-      const data = await api.get('/api/packages/filter?estado=EN_DISPUTA');
-      const paquetes = (data.packages || []).filter((pkg: any) => pkg.is_blocked === true);
-      setPackages(paquetes);
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar paquetes');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchLogs = async (packageId: string) => {
-    try {
-      const data = await api.get(`/api/packages/${packageId}/logs`);
-      setLogs(data.logs || []);
-    } catch (err: any) {
-      if (err.status !== 404) {
-        console.error('Error al cargar logs:', err);
-      }
-      setLogs([]);
-    }
-  };
-
-  const fetchIncidenciaDetails = async (packageId: string) => {
-    try {
-      const data = await api.get(`/api/packages/${packageId}/incidencia`);
-      setIncidenciaDetalle(data.incidencia);
-    } catch (err: any) {
-      console.error('Error al cargar detalles de incidencia:', err);
-    }
-  };
+  const {
+    packages,
+    isViewIncidenceModalOpen,
+    setIsViewIncidenceModalOpen,
+    incidenciaDetalle,
+    fetchIncidenciaDetails
+  } = usePaquetesDisputa(
+    selectedPackage,
+    setSelectedPackage,
+    setLogs,
+    setIsLoading,
+    setError
+  );
 
   const getStateDotColor = (state: string): string => {
     switch (state) {

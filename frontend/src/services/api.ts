@@ -13,7 +13,7 @@ class ApiError extends Error {
 }
 
 async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
-  const token = sessionStorage.getItem('token');
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
   const headers = new Headers(options.headers || {});
 
   if (token) {

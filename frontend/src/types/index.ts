@@ -73,6 +73,7 @@ export interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (rut: string, password: string) => Promise<void>;
+  register: (rut: string, nombre: string, password: string) => Promise<void>;
   logout: () => void;
   hasRole: (role: string) => boolean;
 }

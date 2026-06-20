@@ -35,8 +35,25 @@ def create_app(config_name='development'):
     app.register_blueprint(packages_bp)  # ✅ Sin url_prefix porque ya lo tiene
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     
-    # Crear tablas
+    # Crear tablas y asegurar que existan las nuevas columnas
     with app.app_context():
         db.create_all()
+        
+        # Inyectar columnas nuevas en activos si no existen
+        columnas_nuevas = [
+            "lat REAL",
+            "lng REAL",
+            "token_contingencia VARCHAR(6)",
+            "token_expira DATETIME",
+            "is_blocked BOOLEAN DEFAULT 0 NOT NULL",
+            "tiempo_asignacion DATETIME"
+        ]
+        
+        for col in columnas_nuevas:
+            try:
+                db.session.execute(db.text(f"ALTER TABLE activos ADD COLUMN {col}"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
     
     return app

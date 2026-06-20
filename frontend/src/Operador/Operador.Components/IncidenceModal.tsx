@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { X, AlertTriangle } from 'lucide-react';
+import { useIncidenceModal } from '../Operador.hooks';
+import { IncidenceData } from '../Operador.types';
 
 interface IncidenceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { motivo: string; descripcion: string }) => Promise<void>;
+  onSubmit: (data: IncidenceData) => Promise<void>;
   packageId: string;
   packageName: string;
   isLoading: boolean;
@@ -30,47 +32,17 @@ const IncidenceModal: React.FC<IncidenceModalProps> = ({
   packageName,
   isLoading
 }) => {
-  const [motivo, setMotivo] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [error, setError] = useState('');
+  const {
+    motivo,
+    setMotivo,
+    descripcion,
+    setDescripcion,
+    error,
+    handleSubmit,
+    handleClose
+  } = useIncidenceModal(onSubmit, onClose);
 
   if (!isOpen) return null;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!motivo) {
-      setError('Debes seleccionar un motivo');
-      return;
-    }
-    
-    if (!descripcion.trim()) {
-      setError('Debes ingresar una descripción');
-      return;
-    }
-
-    if (descripcion.trim().length < 10) {
-      setError('La descripción debe tener al menos 10 caracteres');
-      return;
-    }
-
-    try {
-      setError('');
-      await onSubmit({ motivo, descripcion });
-      setMotivo('');
-      setDescripcion('');
-      onClose();
-    } catch (err) {
-      setError('Error al enviar la incidencia. Intenta nuevamente.');
-    }
-  };
-
-  const handleClose = () => {
-    setMotivo('');
-    setDescripcion('');
-    setError('');
-    onClose();
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

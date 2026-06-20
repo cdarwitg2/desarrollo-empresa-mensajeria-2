@@ -1,268 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   LogOut, Package, Users, UserPlus, Edit, Trash2, 
-  Search, X, Loader2, AlertTriangle,
-  UserIcon, Shield, Truck, Briefcase, UserCheck
+  Search, X, Loader2, UserIcon, Shield, Truck, Briefcase, UserCheck
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
-
-type TabType = 'users' | 'packages';
-
-interface User {
-  rut: string;
-  nombre_completo: string;
-  rol: string;
-  roles: string[];
-  activo: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Package {
-  id: string;
-  id_activo: string;
-  nombre: string;
-  descripcion: string;
-  estado_actual: string;
-  integridad: string;
-  rut_cliente: string;
-  rut_mensajero?: string;
-  created_at: string;
-  is_blocked: boolean;
-}
+import { useAdminDashboard } from './Admin.hooks';
+import { TabType } from './Admin.types';
+import { UserModal } from './Admin.Components/UserModal';
+import { ConfirmDeleteModal } from './Admin.Components/ConfirmDeleteModal';
 
 export const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<TabType>('users');
-  const [users, setUsers] = useState<User[]>([]);
-  const [packages, setPackages] = useState<Package[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'user' | 'package'; id: string; name: string } | null>(null);
-
-  const [formData, setFormData] = useState({
-    rut: '',
-    nombre_completo: '',
-    password: '',
-    rol: 'CLIENTE'
-  });
+  const {
+    activeTab,
+    setActiveTab,
+    users,
+    packages,
+    isLoading,
+    error,
+    setError,
+    searchTerm,
+    setSearchTerm,
+    showModal,
+    setShowModal,
+    editingUser,
+    deleteConfirm,
+    setDeleteConfirm,
+    fetchUsers,
+    fetchPackages,
+    handleDeleteUser,
+    handleDeletePackage,
+    openCreateModal,
+    openEditModal,
+    formatRut
+  } = useAdminDashboard();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  useEffect(() => {
-    if (activeTab === 'users') {
-      fetchUsers();
-    } else {
-      fetchPackages();
-    }
-  }, [activeTab]);
-
-  // Formatear RUT: 12345678-9 → 12.345.678-9
-  const formatRut = (rut: string): string => {
-    const clean = rut.replace(/[^0-9kK]/g, '');
-    const number = clean.slice(0, -1);
-    const dv = clean.slice(-1);
-    const limitedNumber = number.slice(0, 8);
-    
-    let formatted = '';
-    let temp = limitedNumber;
-    while (temp.length > 3) {
-      formatted = '.' + temp.slice(-3) + formatted;
-      temp = temp.slice(0, -3);
-    }
-    formatted = temp + formatted;
-    
-    return dv ? formatted + '-' + dv : formatted;
-  };
-
-  const cleanRutForBackend = (rut: string): string => rut.replace(/\./g, '');
-  
-  const isValidRut = (rut: string): boolean => {
-    const clean = rut.replace(/\./g, '');
-    return /^\d{8}-[0-9kK]$/.test(clean);
-  };
-
-  const handleRutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/[^0-9kK.-]/g, '');
-    
-    if (value.includes('-')) {
-      const [numberPart, dvPart] = value.split('-');
-      const cleanNumber = numberPart.replace(/\./g, '').slice(0, 8);
-      const cleanDv = dvPart.slice(0, 1);
-      
-      let formatted = '';
-      let temp = cleanNumber;
-      while (temp.length > 3) {
-        formatted = '.' + temp.slice(-3) + formatted;
-        temp = temp.slice(0, -3);
-      }
-      formatted = temp + formatted;
-      
-      value = formatted + '-' + cleanDv;
-    } else {
-      const cleanNumber = value.replace(/\./g, '').slice(0, 8);
-      let formatted = '';
-      let temp = cleanNumber;
-      while (temp.length > 3) {
-        formatted = '.' + temp.slice(-3) + formatted;
-        temp = temp.slice(0, -3);
-      }
-      value = temp + formatted;
-    }
-    
-    setFormData({ ...formData, rut: value });
-  };
-
-  const fetchUsers = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      const data = await api.get('/api/admin/users');
-      setUsers(data.users || []);
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar usuarios');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchPackages = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      const data = await api.get('/api/admin/packages');
-      setPackages(data.packages || []);
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar paquetes');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!isValidRut(formData.rut)) {
-      setError('El RUT debe tener el formato 12.345.678-9 (8 dígitos + guion + DV)');
-      return;
-    }
-    if (formData.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
-      return;
-    }
-
-    setModalLoading(true);
-    setError('');
-
-    try {
-      await api.post('/api/admin/users', {
-        ...formData,
-        rut: cleanRutForBackend(formData.rut)
-      });
-      await fetchUsers();
-      setShowModal(false);
-      resetForm();
-    } catch (err: any) {
-      setError(err.message || 'Error al crear usuario');
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
-  const handleUpdateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!isValidRut(formData.rut)) {
-      setError('El RUT debe tener el formato 12.345.678-9 (8 dígitos + guion + DV)');
-      return;
-    }
-    if (formData.password && formData.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
-      return;
-    }
-
-    setModalLoading(true);
-    setError('');
-
-    try {
-      await api.put(`/api/admin/users/${cleanRutForBackend(formData.rut)}`, {
-        ...formData,
-        rut: cleanRutForBackend(formData.rut)
-      });
-      await fetchUsers();
-      setShowModal(false);
-      resetForm();
-    } catch (err: any) {
-      setError(err.message || 'Error al actualizar usuario');
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
-  const handleDeleteUser = async () => {
-    if (!deleteConfirm) return;
-    try {
-      setIsLoading(true);
-      await api.delete(`/api/admin/users/${deleteConfirm.id}`);
-      await fetchUsers();
-      setDeleteConfirm(null);
-    } catch (err: any) {
-      setError(err.message || 'Error al eliminar usuario');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeletePackage = async () => {
-    if (!deleteConfirm) return;
-    try {
-      setIsLoading(true);
-      await api.delete(`/api/admin/packages/${deleteConfirm.id}`);
-      await fetchPackages();
-      setDeleteConfirm(null);
-    } catch (err: any) {
-      setError(err.message || 'Error al eliminar paquete');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const openCreateModal = () => {
-    resetForm();
-    setEditingUser(null);
-    setShowModal(true);
-  };
-
-  const openEditModal = (user: User) => {
-    setEditingUser(user);
-    setFormData({
-      rut: formatRut(user.rut),
-      nombre_completo: user.nombre_completo,
-      password: '',
-      rol: user.rol || 'CLIENTE'
-    });
-    setShowModal(true);
-  };
-
-  const resetForm = () => {
-    setFormData({
-      rut: '',
-      nombre_completo: '',
-      password: '',
-      rol: 'CLIENTE'
-    });
-    setError('');
   };
 
   // Iconos por rol
@@ -445,7 +223,6 @@ export const AdminDashboard: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 font-mono text-sm text-slate-400">{formatRut(user.rut)}</td>
                           <td className="px-6 py-4">
-                            {/* 👇 AQUÍ SE APLICA EL COLOR DEL ROL */}
                             <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRolColor(user.rol)}`}>
                               {user.rol || 'CLIENTE'}
                             </span>
@@ -546,166 +323,22 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal de Crear/Editar Usuario */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-[#131b26] rounded-2xl border border-white/5 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-white/5">
-              <div>
-                <h3 className="text-xl font-bold text-white">
-                  {editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}
-                </h3>
-                <p className="text-sm text-slate-400">
-                  {editingUser ? `Editando: ${editingUser.nombre_completo}` : 'Completa los datos del nuevo usuario'}
-                </p>
-              </div>
-              <button
-                onClick={() => { setShowModal(false); resetForm(); }}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
+      <UserModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSuccess={() => {
+          setShowModal(false);
+          fetchUsers();
+        }}
+        editingUser={editingUser}
+      />
 
-            <form onSubmit={editingUser ? handleUpdateUser : handleCreateUser} className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">RUT <span className="text-red-400">*</span></label>
-                <input
-                  type="text"
-                  value={formData.rut}
-                  onChange={handleRutChange}
-                  disabled={!!editingUser}
-                  placeholder="Ej: 12.345.678-9"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-mono"
-                  required
-                />
-                <p className="text-xs text-slate-500 mt-1">Formato: 12.345.678-9 (8 dígitos + guion + DV)</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Nombre Completo <span className="text-red-400">*</span></label>
-                <input
-                  type="text"
-                  value={formData.nombre_completo}
-                  onChange={(e) => setFormData({ ...formData, nombre_completo: e.target.value })}
-                  placeholder="Juan Pérez"
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  {editingUser ? 'Nueva Contraseña (opcional)' : 'Contraseña'} <span className="text-red-400">{editingUser ? '' : '*'}</span>
-                </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder={editingUser ? 'Dejar en blanco para mantener' : 'Mínimo 6 caracteres'}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                  required={!editingUser}
-                  minLength={6}
-                />
-                <p className="text-xs text-slate-500 mt-1">Mínimo 6 caracteres</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Rol <span className="text-red-400">*</span></label>
-                <select
-                  value={formData.rol}
-                  onChange={(e) => setFormData({ ...formData, rol: e.target.value })}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                >
-                  {['CLIENTE', 'OPERADOR', 'MENSAJERO', 'ANALISTA', 'ADMIN'].map((rol) => (
-                    <option key={rol} value={rol} className="text-white bg-[#1a2332]">{rol}</option>
-                  ))}
-                </select>
-              </div>
-
-              {error && (
-                <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-lg">
-                  <p className="text-red-400 text-sm">{error}</p>
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => { setShowModal(false); resetForm(); }}
-                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 font-medium transition-all"
-                  disabled={modalLoading}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={modalLoading}
-                  className="flex-1 px-4 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {modalLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Procesando...
-                    </>
-                  ) : (
-                    editingUser ? 'Actualizar' : 'Crear Usuario'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Confirmación de Eliminación */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-[#131b26] rounded-2xl border border-white/5 shadow-2xl w-full max-w-md">
-            <div className="flex items-center gap-3 p-6 border-b border-white/5">
-              <AlertTriangle className="w-6 h-6 text-red-400" />
-              <div>
-                <h3 className="text-xl font-bold text-white">Confirmar Eliminación</h3>
-                <p className="text-sm text-slate-400">
-                  {deleteConfirm.type === 'user' ? 'Usuario' : 'Paquete'}: {deleteConfirm.name}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-6">
-              <p className="text-slate-300">
-                ¿Estás seguro de eliminar este {deleteConfirm.type === 'user' ? 'usuario' : 'paquete'}?
-                {deleteConfirm.type === 'package' && (
-                  <span className="block text-yellow-400 text-sm mt-2">
-                    ⚠️ Esta acción eliminará permanentemente el paquete y todos sus registros asociados.
-                  </span>
-                )}
-                {deleteConfirm.type === 'user' && (
-                  <span className="block text-yellow-400 text-sm mt-2">
-                    ⚠️ Esta acción eliminará permanentemente al usuario del sistema.
-                  </span>
-                )}
-              </p>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setDeleteConfirm(null)}
-                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 font-medium transition-all"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={deleteConfirm.type === 'user' ? handleDeleteUser : handleDeletePackage}
-                  className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-500 rounded-lg text-white font-bold transition-all flex items-center justify-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Eliminar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDeleteModal
+        isOpen={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={deleteConfirm?.type === 'user' ? handleDeleteUser : handleDeletePackage}
+        deleteConfirm={deleteConfirm}
+      />
     </div>
   );
 };

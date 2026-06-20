@@ -1,70 +1,40 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { User, Lock, AlertCircle } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { useLogin } from '../Autenticacion.hooks';
+
+import FondoAuth from '../../img/Fondo_auth.png';
 
 export const Login: React.FC = () => {
-  const [rut, setRut] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const { login, isLoading } = useAuth();
   const navigate = useNavigate();
+  const { credentials, handleChange, handleSubmit, error, isLoading, user } = useLogin();
 
-  const formatRUT = (value: string) => {
-    // Solo permite dígitos
-    const cleaned = value.replace(/\D/g, '');
-    
-    // Limita a máximo 9 dígitos
-    if (cleaned.length > 9) {
-      return cleaned.slice(0, 9);
-    }
-    
-    // Formatea como XX.XXX.XXX-X
-    if (cleaned.length <= 2) {
-      return cleaned;
-    } else if (cleaned.length <= 5) {
-      return cleaned.slice(0, 2) + '.' + cleaned.slice(2);
-    } else if (cleaned.length <= 8) {
-      return cleaned.slice(0, 2) + '.' + cleaned.slice(2, 5) + '.' + cleaned.slice(5);
-    } else {
-      return cleaned.slice(0, 2) + '.' + cleaned.slice(2, 5) + '.' + cleaned.slice(5, 8) + '-' + cleaned.slice(8);
-    }
-  };
-
-  const handleRutChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatRUT(e.target.value);
-    setRut(formatted);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (!rut.trim() || !password.trim()) {
-      setError('RUT y contraseña son requeridos');
-      return;
-    }
-
-    try {
-      // Limpia los puntos del RUT antes de enviar al backend
-      const cleanRut = rut.replace(/\./g, '');
-      await login(cleanRut, password);
+  useEffect(() => {
+    if (user) {
       navigate('/dashboard');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error en el login');
     }
-  };
+  }, [user, navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-      <div className="absolute inset-0 overflow-hidden">
+    <div className="min-h-screen bg-slate-950 relative flex items-center justify-center p-4 overflow-hidden">
+      {/* Imagen de fondo desenfocada y con baja opacidad */}
+      <div 
+        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-60 blur-[4px] scale-105"
+        style={{ backgroundImage: `url(${FondoAuth})` }}
+      />
+      
+      {/* Capa oscura superpuesta para asegurar el contraste */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-slate-950/50 via-slate-900/40 to-slate-950/50" />
+
+      {/* Orbes decorativos */}
+      <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl"></div>
       </div>
 
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Logística</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">Fast Track</h1>
           <p className="text-slate-400">Sistema de Trazabilidad</p>
         </div>
 
@@ -78,9 +48,10 @@ export const Login: React.FC = () => {
                 <User className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
                 <input
                   id="rut"
+                  name="rut"
                   type="text"
-                  value={rut}
-                  onChange={handleRutChange}
+                  value={credentials.rut}
+                  onChange={handleChange}
                   placeholder="12.345.678-9"
                   disabled={isLoading}
                   className="w-full bg-slate-900/50 border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all disabled:opacity-50"
@@ -96,9 +67,10 @@ export const Login: React.FC = () => {
                 <Lock className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
                 <input
                   id="password"
+                  name="password"
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={credentials.password}
+                  onChange={handleChange}
                   placeholder="••••••••"
                   disabled={isLoading}
                   className="w-full bg-slate-900/50 border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all disabled:opacity-50"
@@ -130,8 +102,11 @@ export const Login: React.FC = () => {
           </form>
 
           <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
-            <p className="text-xs text-slate-400">
-              Usuarios de prueba disponibles en la documentación
+            <p className="text-sm text-slate-300">
+              ¿No tienes una cuenta?{' '}
+              <Link to="/register" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
+                Regístrate aquí
+              </Link>
             </p>
           </div>
         </div>
@@ -139,10 +114,10 @@ export const Login: React.FC = () => {
         <div className="mt-6 bg-slate-900/30 backdrop-blur-sm border border-slate-700/50 rounded-lg p-4">
           <p className="text-xs font-semibold text-slate-300 mb-2">Credenciales de Prueba:</p>
           <div className="space-y-1 text-xs text-slate-400">
-              <p>• <span className="text-slate-300">12.345.678-9</span> / password123 (operador)</p>
-              <p>• <span className="text-slate-300">98.765.432-1</span> / password456 (admin)</p>
-              <p>• <span className="text-slate-300">55.555.555-5</span> / password789 (operador)</p>
-              <p>• <span className="text-slate-300">11.111.111-1</span> / password000 (cliente)</p>
+            <p>• <span className="text-slate-300">12.345.678-9</span> / password123 (operador)</p>
+            <p>• <span className="text-slate-300">98.765.432-1</span> / password456 (admin)</p>
+            <p>• <span className="text-slate-300">55.555.555-5</span> / password789 (operador)</p>
+            <p>• <span className="text-slate-300">11.111.111-1</span> / password000 (cliente)</p>
           </div>
         </div>
       </div>

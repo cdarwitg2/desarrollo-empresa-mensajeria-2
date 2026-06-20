@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Play, AlertTriangle, RotateCcw, Zap, FileText } from 'lucide-react';
+import { LogOut, AlertTriangle, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { api, updateActivoEstado } from '../services/api';
-import { Package, LogEntry } from '../types';
-
-type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'ENTREGADO' | 'EN_DISPUTA' | 'RECIBIDO';
+import { StateType } from './Analista.types';
+import { useAnalystDashboard } from './Analista.hooks';
+import { CustodyTerminal } from './Analista.Components/CustodyTerminal';
 
 const normalizeState = (state: string): StateType => {
   return state.toUpperCase().replace('Á', 'A').replace('Ó', 'O').replace(' ', '_') as StateType;
@@ -18,103 +17,19 @@ export const AnalystDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [packages, setPackages] = useState<Package[]>([]);
-  const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const {
+    packages,
+    selectedPackage,
+    setSelectedPackage,
+    logs,
+    isLoading,
+    error,
+    handleReleaseAsset
+  } = useAnalystDashboard();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  useEffect(() => {
-    fetchDisputedPackages();
-  }, []);
-
-  useEffect(() => {
-    if (selectedPackage) {
-      fetchPackageLogs(selectedPackage.id);
-    }
-  }, [selectedPackage]);
-
-  const fetchDisputedPackages = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-
-      const data = await api.get('/api/packages/filter?estado=EN_DISPUTA');
-      setPackages(data.packages || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchPackageLogs = async (packageId: string) => {
-    try {
-      setIsLoading(true);
-      try {
-        const data = await api.get(`/api/packages/${packageId}/logs`);
-        setLogs(data.logs || []);
-      } catch (err: any) {
-        if (err.status === 404) {
-          setLogs([]);
-        } else {
-          throw err;
-        }
-      }
-    } catch (err) {
-      console.error('Error al cargar logs:', err);
-      setLogs([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updatePackageStatus = async (newStatus: StateType, integridad?: string) => {
-    if (!selectedPackage) return;
-    try {
-      setIsLoading(true);
-      const data = await updateActivoEstado(selectedPackage.id_activo, newStatus, integridad, '');
-      
-      setSelectedPackage(data.asset);
-      if (data.log) {
-        setLogs([data.log, ...logs]);
-      }
-      
-      // If it's no longer in dispute, remove it from the list and clear selection
-      if (newStatus !== 'EN_DISPUTA') {
-         setSelectedPackage(null);
-         await fetchDisputedPackages();
-      }
-    } catch (err: any) {
-      if (err.status === 409) {
-        setError(err.message || 'Error de conflicto de transición de estado');
-      } else {
-        setError(err instanceof Error ? err.message : 'Error desconocido');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleReleaseAsset = async () => {
-    await updatePackageStatus('EN_ACOPIO');
-  };
-
-  const getStateColor = (state: string): string => {
-    switch (state) {
-      case 'SOLICITADO': return 'from-blue-500 to-blue-600';
-      case 'EN_TRANSITO': return 'from-yellow-500 to-yellow-600';
-      case 'EN_ACOPIO': return 'from-purple-500 to-purple-600';
-      case 'ENTREGADO': return 'from-green-500 to-green-600';
-      case 'RECIBIDO': return 'from-teal-500 to-teal-600';
-      case 'EN_DISPUTA': return 'from-red-500 to-red-600';
-      default: return 'from-slate-500 to-slate-600';
-    }
   };
 
   return (
@@ -230,12 +145,6 @@ export const AnalystDashboard: React.FC = () => {
                   </h4>
                   <div className="flex items-center justify-between">
                     {STATES_PIPELINE.map((state, idx) => {
-                      const normalizedCurrent = normalizeState(selectedPackage.estado_actual);
-                      const isDisputed = normalizedCurrent === 'EN_DISPUTA';
-                      // If it's disputed, the pipeline is stopped. Just show current position if possible or just show all inactive.
-                      const isActive = false; 
-                      const isPassed = false; 
-
                       return (
                         <div key={state} className="flex items-center">
                           <div
@@ -295,43 +204,7 @@ export const AnalystDashboard: React.FC = () => {
 
         {/* Terminal de Logs */}
         {selectedPackage && (
-          <div className="mt-6 backdrop-blur-md bg-black/40 border border-white/10 rounded-xl p-6 font-mono text-sm">
-            <h4 className="text-sm font-semibold text-slate-300 mb-4 uppercase">
-              Terminal de Custodia - Paquete #{selectedPackage.id} ({selectedPackage.nombre})
-            </h4>
-            <div className="bg-black/80 rounded p-4 h-48 overflow-y-auto space-y-2">
-              {logs.length === 0 ? (
-                <p className="text-slate-600">
-                  $ Historial de cambios de estado para este paquete...
-                </p>
-              ) : (
-                logs.map((log) => {
-                  const date = new Date(log.timestamp);
-                  const dateStr = date.toLocaleDateString('es-ES', { 
-                    day: '2-digit', month: '2-digit', year: 'numeric' 
-                  });
-                  const timeStr = date.toLocaleTimeString('es-ES', {
-                    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-                  });
-                  
-                  return (
-                    <div
-                      key={log.id}
-                      className={`${
-                        log.tipo_alerta === 'resolución'
-                          ? 'text-green-400'
-                          : log.tipo_alerta === 'crítico'
-                            ? 'text-red-400'
-                            : 'text-slate-400'
-                      }`}
-                    >
-                      {`[${dateStr} ${timeStr}] RUT: ${log.rut_responsable} | Estado: ${log.estado_instante} | Alerta: ${log.tipo_alerta}`}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+          <CustodyTerminal selectedPackage={selectedPackage} logs={logs} />
         )}
       </div>
     </div>

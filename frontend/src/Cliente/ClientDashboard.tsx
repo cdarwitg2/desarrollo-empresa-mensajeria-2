@@ -1,14 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LogOut, Package, Send, ListChecks, Info, User as UserIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ShipmentForm } from './ShipmentForm';
-
-import { api, updateActivoEstado } from '../services/api';
-import { Package as ClientPackage } from '../types';
-
-type TabType = 'request' | 'tracking';
-type StateType = 'SOLICITADO' | 'EN_TRANSITO' | 'EN_ACOPIO' | 'ENTREGADO' | 'EN_DISPUTA' | 'RECIBIDO';
+import { ShipmentForm } from './Cliente.Components/ShipmentForm';
+import { StateType } from './Cliente.types';
+import { useClientDashboard } from './Cliente.hooks';
+import FondoCliente from '../img/Fondo_Cliente.png';
 
 const STATES_PIPELINE: StateType[] = ['SOLICITADO', 'EN_TRANSITO', 'EN_ACOPIO', 'ENTREGADO', 'RECIBIDO'];
 
@@ -16,57 +13,20 @@ export const ClientDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<TabType>(() => {
-    const saved = sessionStorage.getItem('clientDashboardTab');
-    return (saved as TabType) || 'tracking';
-  });
-  const [packages, setPackages] = useState<ClientPackage[]>([]);
-  const [selectedPackage, setSelectedPackage] = useState<ClientPackage | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    sessionStorage.setItem('clientDashboardTab', activeTab);
-  }, [activeTab]);
+  const {
+    activeTab,
+    setActiveTab,
+    packages,
+    selectedPackage,
+    setSelectedPackage,
+    isLoading,
+    error,
+    handleMarkAsReceived
+  } = useClientDashboard();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  useEffect(() => {
-    if (activeTab === 'tracking') {
-      fetchMyPackages();
-    }
-  }, [activeTab]);
-
-  const fetchMyPackages = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      setSelectedPackage(null);
-      
-      const data = await api.get('/api/packages/my-packages');
-      setPackages(data.packages || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleMarkAsReceived = async () => {
-    if (!selectedPackage) return;
-    try {
-      setIsLoading(true);
-      setError('');
-      await updateActivoEstado(selectedPackage.id_activo, 'RECIBIDO', selectedPackage.integridad, '');
-      await fetchMyPackages();
-    } catch (err: any) {
-      setError(err.message || 'Error al actualizar el estado');
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const getStateDotColor = (state: string): string => {
@@ -104,38 +64,45 @@ export const ClientDashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#0b111a] text-slate-300 font-sans overflow-hidden">
+    <div className="flex h-screen text-slate-300 font-sans overflow-hidden relative">
+      {/* Imagen de fondo desenfocada y con baja opacidad */}
+      <div
+        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-100 blur-[4px] scale-105"
+        style={{ backgroundImage: `url(${FondoCliente})` }}
+      />
+
+      {/* Capa oscura superpuesta para asegurar el contraste */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#0b111a]/30 via-slate-900/20 to-[#0b111a]/30" />
+
       {/* Sidebar */}
-      <div className="w-64 border-r border-white/5 bg-[#0b111a] flex flex-col justify-between shrink-0">
+      <div className="w-64 border-r border-white/5 bg-[#0b111a]/20 backdrop-blur-md flex flex-col justify-between shrink-0 relative z-10">
         <div>
           {/* Brand */}
           <div className="flex items-center gap-3 px-6 py-8">
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
               <Package className="w-5 h-5 text-emerald-400" />
             </div>
-            <h1 className="text-lg font-bold text-white tracking-wide">Portal Cliente</h1>
+            <h1 className="text-lg font-bold text-white tracking-wide">Fast Track</h1>
           </div>
 
           {/* Nav Links */}
           <nav className="px-4 space-y-2 mt-4">
             <button
               onClick={() => setActiveTab('request')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                activeTab === 'request'
-                  ? 'bg-emerald-400 text-slate-900 font-semibold shadow-[0_0_15px_rgba(52,211,153,0.3)]'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'request'
+                ? 'bg-emerald-400 text-slate-900 font-semibold shadow-[0_0_15px_rgba(52,211,153,0.3)]'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
             >
               <Send className="w-4 h-4" />
               Solicitar Envío
             </button>
             <button
               onClick={() => setActiveTab('tracking')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                activeTab === 'tracking'
-                  ? 'bg-emerald-400 text-slate-900 font-semibold shadow-[0_0_15px_rgba(52,211,153,0.3)]'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'tracking'
+                ? 'bg-emerald-400 text-slate-900 font-semibold shadow-[0_0_15px_rgba(52,211,153,0.3)]'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
             >
               <ListChecks className="w-4 h-4" />
               Mis Paquetes
@@ -165,9 +132,9 @@ export const ClientDashboard: React.FC = () => {
       </div>
 
       {/* Main Content - Pantalla completa */}
-      <div className="flex-1 overflow-hidden bg-[#0b111a]">
+      <div className="flex-1 overflow-hidden bg-transparent relative z-10">
         {activeTab === 'tracking' && (
-          <div className="h-full p-8 lg:p-12">
+          <div className="h-full p-8 lg:p-12 overflow-y-auto">
             <div className="max-w-6xl mx-auto h-full flex flex-col">
               {/* Header section */}
               <div className="mb-6 border-b border-white/5 pb-4 flex-shrink-0">
@@ -186,9 +153,9 @@ export const ClientDashboard: React.FC = () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
                 {/* Left Column: List */}
-                <div className="lg:col-span-4 flex flex-col h-full bg-[#131b26] rounded-2xl border border-white/5 p-4 overflow-hidden">
+                <div className="lg:col-span-4 flex flex-col h-full bg-[#131b26]/20 backdrop-blur-md rounded-2xl border border-white/10 p-4 overflow-hidden">
                   <h3 className="text-sm font-medium text-emerald-500 mb-4 px-2 flex-shrink-0">Tus Envíos</h3>
-                  
+
                   <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                     {isLoading ? (
                       <div className="flex justify-center py-8">
@@ -206,11 +173,10 @@ export const ClientDashboard: React.FC = () => {
                           <button
                             key={pkg.id}
                             onClick={() => setSelectedPackage(pkg)}
-                            className={`w-full text-left p-4 rounded-xl transition-all border ${
-                              isSelected
-                                ? 'bg-[#1a2332] border-white/5 border-r-4 border-r-emerald-500'
-                                : 'bg-[#151e2a] border-white/5 hover:bg-[#1a2332]'
-                            }`}
+                            className={`w-full text-left p-4 rounded-xl transition-all border ${isSelected
+                              ? 'bg-[#1a2332] border-white/5 border-r-4 border-r-emerald-500'
+                              : 'bg-[#151e2a] border-white/5 hover:bg-[#1a2332]'
+                              }`}
                           >
                             <h4 className={`font-bold ${isSelected ? 'text-white' : 'text-slate-300'}`}>
                               {pkg.nombre}
@@ -232,7 +198,7 @@ export const ClientDashboard: React.FC = () => {
                 </div>
 
                 {/* Right Column: Details */}
-                <div className="lg:col-span-8 flex flex-col h-full bg-[#131b26] rounded-2xl border border-white/5 overflow-hidden">
+                <div className="lg:col-span-8 flex flex-col h-full bg-[#131b26]/20 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden">
                   {!selectedPackage ? (
                     <div className="flex-1 flex items-center justify-center">
                       <div className="text-center text-slate-500">
@@ -260,19 +226,17 @@ export const ClientDashboard: React.FC = () => {
                               <div key={state} className="flex items-center flex-1 last:flex-none">
                                 <div className="flex flex-col items-center flex-shrink-0 relative">
                                   <div
-                                    className={`flex items-center justify-center w-14 h-14 rounded-full font-bold text-xs transition-all relative z-10 ${
-                                      isActive
-                                        ? `bg-gradient-to-r ${getStateGlow(state)} text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-110`
-                                        : isPassed
-                                          ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400'
-                                          : 'bg-slate-800/50 border border-slate-700 text-slate-500'
-                                    }`}
+                                    className={`flex items-center justify-center w-14 h-14 rounded-full font-bold text-xs transition-all relative z-10 ${isActive
+                                      ? `bg-gradient-to-r ${getStateGlow(state)} text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-110`
+                                      : isPassed
+                                        ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400'
+                                        : 'bg-slate-800/50 border border-slate-700 text-slate-500'
+                                      }`}
                                   >
                                     {state.slice(0, 3)}
                                   </div>
-                                  <p className={`text-xs mt-3 text-center absolute -bottom-6 w-24 left-1/2 -translate-x-1/2 ${
-                                    isActive ? 'text-white font-medium' : isPassed ? 'text-emerald-400/80' : 'text-slate-500'
-                                  }`}>
+                                  <p className={`text-xs mt-3 text-center absolute -bottom-6 w-24 left-1/2 -translate-x-1/2 ${isActive ? 'text-white font-medium' : isPassed ? 'text-emerald-400/80' : 'text-slate-500'
+                                    }`}>
                                     {state.toLowerCase()}
                                   </p>
                                 </div>
@@ -280,13 +244,12 @@ export const ClientDashboard: React.FC = () => {
                                 {idx < STATES_PIPELINE.length - 1 && (
                                   <div className="flex-1 h-0.5 mx-2 bg-slate-800/50 relative">
                                     <div
-                                      className={`absolute inset-0 h-full rounded-full transition-all ${
-                                        isPassed
-                                          ? 'bg-emerald-500/50'
-                                          : isActive
-                                            ? 'bg-gradient-to-r from-emerald-500/50 to-transparent'
-                                            : 'bg-transparent'
-                                      }`}
+                                      className={`absolute inset-0 h-full rounded-full transition-all ${isPassed
+                                        ? 'bg-emerald-500/50'
+                                        : isActive
+                                          ? 'bg-gradient-to-r from-emerald-500/50 to-transparent'
+                                          : 'bg-transparent'
+                                        }`}
                                     />
                                   </div>
                                 )}
@@ -297,7 +260,7 @@ export const ClientDashboard: React.FC = () => {
                       </div>
 
                       {/* Información Detallada */}
-                      <div className="grid grid-cols-2 gap-4 bg-[#1a2332] rounded-xl p-4 border border-white/5">
+                      <div className="grid grid-cols-2 gap-4 bg-[#1a2332]/30 backdrop-blur-sm rounded-xl p-4 border border-white/5">
                         <div>
                           <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Nombre</p>
                           <p className="text-white font-medium">{selectedPackage.nombre}</p>
@@ -358,7 +321,7 @@ export const ClientDashboard: React.FC = () => {
                   <div className="absolute -bottom-4 left-0 w-1/3 h-1 bg-emerald-500 rounded-full"></div>
                 </h2>
               </div>
-              <div className="flex-1 bg-[#131b26] rounded-2xl border border-white/5 p-6 overflow-hidden min-h-0">
+              <div className="flex-1 bg-[#131b26]/20 backdrop-blur-md rounded-2xl border border-white/10 p-6 overflow-hidden min-h-0">
                 <ShipmentForm />
               </div>
             </div>

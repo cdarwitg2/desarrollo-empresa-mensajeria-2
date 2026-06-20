@@ -10,8 +10,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedToken = sessionStorage.getItem('token');
-    const storedUser = sessionStorage.getItem('user');
+    const storedToken = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
     
     if (storedToken && storedUser) {
       setToken(storedToken);
@@ -38,8 +38,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ultima_conexion: new Date().toISOString(),
       };
 
-      sessionStorage.setItem('token', data.token);
-      sessionStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(userData));
+
+      setToken(data.token);
+      setUser(userData);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (rut: string, nombre: string, password: string) => {
+    setIsLoading(true);
+    try {
+      const response = await api.post('/api/auth/register', { rut, nombre, password });
+      
+      const data = response as LoginResponse;
+
+      const userData: User = {
+        rut: data.rut,
+        nombre: data.nombre,
+        nombre_completo: data.nombre,
+        rol: data.roles?.[0] || null,
+        roles: data.roles || [],
+        activo: true,
+        ultima_conexion: new Date().toISOString(),
+      };
+
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(userData));
 
       setToken(data.token);
       setUser(userData);
@@ -49,8 +76,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setToken(null);
     setUser(null);
   };
@@ -65,6 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     token,
     isLoading,
     login,
+    register,
     logout,
     hasRole,
   };
