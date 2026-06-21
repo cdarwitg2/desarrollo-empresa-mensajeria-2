@@ -82,27 +82,29 @@ export const ClientDashboard: React.FC = () => {
             <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
               <Package className="w-5 h-5 text-emerald-400" />
             </div>
-            <h1 className="text-lg font-bold text-white tracking-wide">Fast Track</h1>
+            <h1 className="text-lg font-bold text-white tracking-wide">Portal Cliente</h1>
           </div>
 
           {/* Nav Links */}
           <nav className="px-4 space-y-2 mt-4">
             <button
               onClick={() => setActiveTab('request')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'request'
-                ? 'bg-emerald-400 text-slate-900 font-semibold shadow-[0_0_15px_rgba(52,211,153,0.3)]'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                activeTab === 'request'
+                  ? 'bg-emerald-400 text-slate-900 font-semibold shadow-[0_0_15px_rgba(52,211,153,0.3)]'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
             >
               <Send className="w-4 h-4" />
               Solicitar Envío
             </button>
             <button
               onClick={() => setActiveTab('tracking')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'tracking'
-                ? 'bg-emerald-400 text-slate-900 font-semibold shadow-[0_0_15px_rgba(52,211,153,0.3)]'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                activeTab === 'tracking'
+                  ? 'bg-emerald-400 text-slate-900 font-semibold shadow-[0_0_15px_rgba(52,211,153,0.3)]'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
             >
               <ListChecks className="w-4 h-4" />
               Mis Paquetes
@@ -131,11 +133,11 @@ export const ClientDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content - Pantalla completa */}
+      {/* Main Content - FULL WIDTH */}
       <div className="flex-1 overflow-hidden bg-transparent relative z-10">
         {activeTab === 'tracking' && (
-          <div className="h-full p-8 lg:p-12 overflow-y-auto">
-            <div className="max-w-6xl mx-auto h-full flex flex-col">
+          <div className="h-full p-8 lg:p-12">
+            <div className="h-full flex flex-col">
               {/* Header section */}
               <div className="mb-6 border-b border-white/5 pb-4 flex-shrink-0">
                 <h2 className="text-3xl font-bold text-white inline-block relative">
@@ -173,10 +175,11 @@ export const ClientDashboard: React.FC = () => {
                           <button
                             key={pkg.id}
                             onClick={() => setSelectedPackage(pkg)}
-                            className={`w-full text-left p-4 rounded-xl transition-all border ${isSelected
-                              ? 'bg-[#1a2332] border-white/5 border-r-4 border-r-emerald-500'
-                              : 'bg-[#151e2a] border-white/5 hover:bg-[#1a2332]'
-                              }`}
+                            className={`w-full text-left p-4 rounded-xl transition-all border ${
+                              isSelected
+                                ? 'bg-[#1a2332] border-white/5 border-r-4 border-r-emerald-500'
+                                : 'bg-[#151e2a] border-white/5 hover:bg-[#1a2332]'
+                            }`}
                           >
                             <h4 className={`font-bold ${isSelected ? 'text-white' : 'text-slate-300'}`}>
                               {pkg.nombre}
@@ -226,17 +229,19 @@ export const ClientDashboard: React.FC = () => {
                               <div key={state} className="flex items-center flex-1 last:flex-none">
                                 <div className="flex flex-col items-center flex-shrink-0 relative">
                                   <div
-                                    className={`flex items-center justify-center w-14 h-14 rounded-full font-bold text-xs transition-all relative z-10 ${isActive
-                                      ? `bg-gradient-to-r ${getStateGlow(state)} text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-110`
-                                      : isPassed
-                                        ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400'
-                                        : 'bg-slate-800/50 border border-slate-700 text-slate-500'
-                                      }`}
+                                    className={`flex items-center justify-center w-14 h-14 rounded-full font-bold text-xs transition-all relative z-10 ${
+                                      isActive
+                                        ? `bg-gradient-to-r ${getStateGlow(state)} text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-110`
+                                        : isPassed
+                                          ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400'
+                                          : 'bg-slate-800/50 border border-slate-700 text-slate-500'
+                                    }`}
                                   >
                                     {state.slice(0, 3)}
                                   </div>
-                                  <p className={`text-xs mt-3 text-center absolute -bottom-6 w-24 left-1/2 -translate-x-1/2 ${isActive ? 'text-white font-medium' : isPassed ? 'text-emerald-400/80' : 'text-slate-500'
-                                    }`}>
+                                  <p className={`text-xs mt-3 text-center absolute -bottom-6 w-24 left-1/2 -translate-x-1/2 ${
+                                    isActive ? 'text-white font-medium' : isPassed ? 'text-emerald-400/80' : 'text-slate-500'
+                                  }`}>
                                     {state.toLowerCase()}
                                   </p>
                                 </div>
@@ -244,12 +249,13 @@ export const ClientDashboard: React.FC = () => {
                                 {idx < STATES_PIPELINE.length - 1 && (
                                   <div className="flex-1 h-0.5 mx-2 bg-slate-800/50 relative">
                                     <div
-                                      className={`absolute inset-0 h-full rounded-full transition-all ${isPassed
-                                        ? 'bg-emerald-500/50'
-                                        : isActive
-                                          ? 'bg-gradient-to-r from-emerald-500/50 to-transparent'
-                                          : 'bg-transparent'
-                                        }`}
+                                      className={`absolute inset-0 h-full rounded-full transition-all ${
+                                        isPassed
+                                          ? 'bg-emerald-500/50'
+                                          : isActive
+                                            ? 'bg-gradient-to-r from-emerald-500/50 to-transparent'
+                                            : 'bg-transparent'
+                                      }`}
                                     />
                                   </div>
                                 )}
@@ -314,7 +320,7 @@ export const ClientDashboard: React.FC = () => {
         {/* Pestaña: Solicitar Envío - Pantalla completa */}
         {activeTab === 'request' && (
           <div className="h-full p-8 lg:p-12">
-            <div className="max-w-7xl mx-auto h-full flex flex-col">
+            <div className="h-full flex flex-col">
               <div className="mb-6 border-b border-white/5 pb-4 flex-shrink-0">
                 <h2 className="text-3xl font-bold text-white inline-block relative">
                   Solicitar Envío

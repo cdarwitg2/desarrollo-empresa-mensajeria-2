@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { 
   LogOut, AlertTriangle, RotateCcw, X, CheckCircle, 
   FileText, UserIcon, Loader2, Clock, Flag, 
-  Eye, MessageSquare, ThumbsUp, Ban, Package
+  Eye, MessageSquare, ThumbsUp, Ban, Package,
+  Calendar, User, Clipboard
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api, updateActivoEstado } from '../services/api';
@@ -314,10 +315,11 @@ export const AnalystDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content - FULL WIDTH (sin max-w-7xl) */}
       <div className="flex-1 overflow-y-auto bg-[#0b111a] p-8 lg:p-12">
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-8 border-b border-white/5 pb-4">
+        <div className="h-full flex flex-col">
+          {/* Header */}
+          <div className="mb-6 border-b border-white/5 pb-4 flex-shrink-0">
             <h2 className="text-3xl font-bold text-white inline-block relative">
               {activeTab === 'incidencias' ? 'Incidencias Pendientes' : 'Paquetes Bloqueados'}
               <div className="absolute -bottom-4 left-0 w-1/3 h-1 bg-amber-500 rounded-full"></div>
@@ -330,7 +332,7 @@ export const AnalystDashboard: React.FC = () => {
           </div>
 
           {error && (
-            <div className="mb-6 bg-red-500/10 border border-red-500/50 rounded-lg p-4 flex items-center gap-3">
+            <div className="mb-4 bg-red-500/10 border border-red-500/50 rounded-lg p-4 flex items-center gap-3 flex-shrink-0">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
               <p className="text-red-400 text-sm">{error}</p>
               <button onClick={() => setError('')} className="ml-auto text-red-400 hover:text-red-300">
@@ -339,10 +341,11 @@ export const AnalystDashboard: React.FC = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-220px)]">
+          {/* Grid - ocupando todo el espacio disponible */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
             {/* Panel izquierdo - Lista */}
             <div className="lg:col-span-1 flex flex-col h-full bg-[#131b26] rounded-2xl border border-white/5 p-4 overflow-hidden">
-              <h3 className="text-sm font-medium text-amber-500 mb-4 px-2">
+              <h3 className="text-sm font-medium text-amber-500 mb-4 px-2 flex-shrink-0">
                 {activeTab === 'incidencias' ? 'Incidencias' : 'Paquetes'}
               </h3>
               
@@ -425,7 +428,7 @@ export const AnalystDashboard: React.FC = () => {
               ) : (
                 <div className="p-6 h-full flex flex-col overflow-y-auto">
                   {/* Header */}
-                  <div className="flex justify-between items-start mb-4">
+                  <div className="flex justify-between items-start mb-4 flex-shrink-0">
                     <div>
                       <h4 className="text-lg font-bold text-white">{selectedPackage.nombre}</h4>
                       <p className="text-slate-400 text-sm font-mono">ID: {selectedPackage.id}</p>
@@ -448,7 +451,7 @@ export const AnalystDashboard: React.FC = () => {
                   </div>
 
                   {/* Detalles del paquete */}
-                  <div className="grid grid-cols-2 gap-4 bg-[#1a2332] rounded-xl p-4 border border-white/5 mb-4">
+                  <div className="grid grid-cols-2 gap-4 bg-[#1a2332] rounded-xl p-4 border border-white/5 mb-4 flex-shrink-0">
                     <div>
                       <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Origen</p>
                       <p className="text-white text-sm">{selectedPackage.direccion_origen}</p>
@@ -471,7 +474,7 @@ export const AnalystDashboard: React.FC = () => {
 
                   {/* Detalles de la incidencia */}
                   {incidenciaDetalle && (
-                    <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4">
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4 flex-shrink-0">
                       <h5 className="text-sm font-semibold text-red-400 mb-3 flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4" />
                         Detalles de la Incidencia
@@ -506,14 +509,16 @@ export const AnalystDashboard: React.FC = () => {
                   {/* Botón Gestionar */}
                   <button
                     onClick={handleOpenResolutionModal}
-                    className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
+                    className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 flex-shrink-0"
                   >
                     <Eye className="w-4 h-4" />
                     Gestionar Incidencia
                   </button>
 
-                  {/* Terminal de Logs */}
-                  <CustodyTerminal selectedPackage={selectedPackage} logs={logs} />
+                  {/* Terminal de Logs - Ocupa el espacio restante */}
+                  <div className="flex-1 min-h-0 mt-4">
+                    <CustodyTerminal selectedPackage={selectedPackage} logs={logs} />
+                  </div>
                 </div>
               )}
             </div>
