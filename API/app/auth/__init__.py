@@ -4,6 +4,7 @@ Gestiona las rutas de autenticación del sistema
 """
 from flask import Blueprint
 
-auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+# Definir el blueprint sin `url_prefix` para evitar duplicar el prefijo
+auth_bp = Blueprint('auth', __name__)
 
 from app.auth import routes

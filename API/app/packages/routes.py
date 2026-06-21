@@ -581,13 +581,16 @@ def report_incidence(id_activo):
         
         activo.updated_at = datetime.utcnow()
         
-        # Registrar log de incidencia
+        # 👇 GUARDAR LA DESCRIPCIÓN COMPLETA EN EL LOG
+        descripcion_log = f"INCIDENCIA REPORTADA - Motivo: {motivo} - Descripción: {descripcion}"
+        
         custody_log = CustodyLog(
             id_activo=id_activo,
             rut_responsable=rut_actual,
             estado_instante=activo.estado_actual.value,
             tipo_alerta='crítico',
-            is_offline_sync=False
+            is_offline_sync=False,
+            descripcion=descripcion_log  # 👈 Guardar la descripción completa
         )
         db.session.add(custody_log)
         db.session.commit()
@@ -603,43 +606,6 @@ def report_incidence(id_activo):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Error al reportar incidencia: {str(e)}'}), 500
-
-
-@packages_bp.route('/<id_activo>/incidencia', methods=['GET'])
-@jwt_required()
-def get_incidencia_details(id_activo):
-    """
-    Obtiene los detalles de la incidencia de un paquete bloqueado
-    """
-    try:
-        activo = Activo.query.filter_by(id_activo=id_activo).first()
-        if not activo:
-            return jsonify({'error': f'Activo con ID {id_activo} no encontrado'}), 404
-        
-        if not activo.is_blocked:
-            return jsonify({'error': 'El paquete no está bloqueado'}), 400
-        
-        # Buscar el log de incidencia (tipo_alerta='crítico')
-        log_incidencia = CustodyLog.query.filter_by(
-            id_activo=id_activo,
-            tipo_alerta='crítico'
-        ).order_by(CustodyLog.timestamp.desc()).first()
-        
-        if not log_incidencia:
-            return jsonify({'error': 'No se encontró el registro de incidencia'}), 404
-        
-        return jsonify({
-            'success': True,
-            'incidencia': {
-                'motivo': 'Reportado por operador',
-                'descripcion': f'Incidencia reportada el {log_incidencia.timestamp}',
-                'fecha': log_incidencia.timestamp.isoformat() if log_incidencia.timestamp else None,
-                'reportado_por': log_incidencia.rut_responsable
-            }
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': f'Error al obtener detalles de incidencia: {str(e)}'}), 500
 
 
 @packages_bp.route('/<id_activo>/tiempo-restante', methods=['GET'])

@@ -4,6 +4,7 @@ Gestiona CRUD de usuarios y validaciones de acceso
 """
 from flask import Blueprint
 
-admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
+# Registrar sin `url_prefix` aquí; se aplica al registrar el blueprint en la app
+admin_bp = Blueprint('admin', __name__)
 
 from . import routes

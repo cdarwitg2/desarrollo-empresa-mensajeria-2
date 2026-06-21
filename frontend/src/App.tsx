@@ -10,16 +10,21 @@ function App() {
     <Router>
       <AuthProvider>
         <Routes>
-          <Route path="/register" element={<Register />} />
+          {/* Rutas públicas */}
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          
+          {/* Ruta protegida con wildcard para rutas anidadas */}
           <Route
-            path="/dashboard"
+            path="/dashboard/*"
             element={
               <ProtectedRoute>
                 <RoleBasedRouter />
               </ProtectedRoute>
             }
           />
+          
+          {/* Redirecciones */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

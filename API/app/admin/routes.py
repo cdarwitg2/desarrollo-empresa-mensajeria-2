@@ -5,7 +5,7 @@ Solo accesibles por usuarios con rol 'administrador'
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
 from . import admin_bp
-from app.models import Usuario, Activo
+from app.models import Usuario, Activo, RolUsuario
 from app import db
 from werkzeug.security import generate_password_hash
 
@@ -63,7 +63,7 @@ def create_user():
         - rut (str): RUT del usuario (formato: 12345678-9)
         - nombre_completo (str): Nombre completo del usuario
         - password (str): Contraseña en texto plano
-        - rol (str): Rol del usuario (Remitente, Mensajero, Acopio, Analista, Administrador)
+        - rol (str): Rol del usuario (CLIENTE, OPERADOR, MENSAJERO, ANALISTA, ADMIN)
     
     Returns:
         JSON con confirmación y detalles del usuario creado
@@ -80,7 +80,7 @@ def create_user():
         rut = data.get('rut', '').strip()
         nombre_completo = data.get('nombre_completo', '').strip()
         password = data.get('password', '')
-        rol = data.get('rol', 'Remitente')
+        rol = data.get('rol', 'CLIENTE')
         
         if not rut:
             return jsonify({'error': 'El campo "rut" es obligatorio'}), 400
@@ -93,17 +93,16 @@ def create_user():
         if usuario_existente:
             return jsonify({'error': f'El usuario con RUT {rut} ya existe'}), 400
         
-        # Mapear rol string a enum
-        from app.models import RolUsuario
+        # 👇 MAPEO CORRECTO DE ROLES (MAYÚSCULAS -> ENUM)
         rol_mapping = {
-            'Remitente': RolUsuario.REMITENTE,
-            'Mensajero': RolUsuario.MENSAJERO,
-            'Acopio': RolUsuario.ACOPIO,
-            'Analista': RolUsuario.ANALISTA,
-            'Administrador': RolUsuario.ADMINISTRADOR
+            'CLIENTE': RolUsuario.REMITENTE,
+            'OPERADOR': RolUsuario.ACOPIO,
+            'MENSAJERO': RolUsuario.MENSAJERO,
+            'ANALISTA': RolUsuario.ANALISTA,
+            'ADMIN': RolUsuario.ADMINISTRADOR
         }
         
-        rol_enum = rol_mapping.get(rol, RolUsuario.REMITENTE)
+        rol_enum = rol_mapping.get(rol.upper(), RolUsuario.REMITENTE)
         
         nuevo_usuario = Usuario(
             rut=rut,
@@ -176,15 +175,15 @@ def update_user(rut):
             usuario.set_password(data['password'])
         
         if 'rol' in data:
-            from app.models import RolUsuario
+            # 👇 MAPEO CORRECTO DE ROLES
             rol_mapping = {
-                'Remitente': RolUsuario.REMITENTE,
-                'Mensajero': RolUsuario.MENSAJERO,
-                'Acopio': RolUsuario.ACOPIO,
-                'Analista': RolUsuario.ANALISTA,
-                'Administrador': RolUsuario.ADMINISTRADOR
+                'CLIENTE': RolUsuario.REMITENTE,
+                'OPERADOR': RolUsuario.ACOPIO,
+                'MENSAJERO': RolUsuario.MENSAJERO,
+                'ANALISTA': RolUsuario.ANALISTA,
+                'ADMIN': RolUsuario.ADMINISTRADOR
             }
-            usuario.rol = rol_mapping.get(data['rol'], RolUsuario.REMITENTE)
+            usuario.rol = rol_mapping.get(data['rol'].upper(), RolUsuario.REMITENTE)
         
         if 'activo' in data:
             usuario.activo = bool(data['activo'])

@@ -51,16 +51,30 @@ export const useLogin = () => {
 
     try {
       const cleanRut = credentials.rut.replace(/\./g, '');
+      
       await login(cleanRut, credentials.password);
+      
+      console.log('✅ Login exitoso, usuario autenticado');
+      
+      // Redirigir a la raíz (que redirige a /dashboard)
+      window.location.href = '/';
+      
     } catch (err: any) {
+      console.error('❌ Error en login:', err);
       if (err.status === 401) {
         setError('RUT o contraseña incorrectos');
       } else {
-        setError('Error al conectar con el servidor');
+        setError(err.message || 'Error al conectar con el servidor');
       }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const logout = () => {
+    const { logout: authLogout } = useAuth();
+    authLogout();
+    window.location.href = '/login';
   };
 
   return {
@@ -137,8 +151,16 @@ export const useRegister = () => {
 
     try {
       const cleanRut = credentials.rut.replace(/\./g, '');
+      
       await register(cleanRut, credentials.nombre, credentials.password);
+      
+      console.log('✅ Registro exitoso');
+      
+      // Redirigir a la raíz (que redirige a /dashboard)
+      window.location.href = '/';
+      
     } catch (err: any) {
+      console.error('❌ Error en registro:', err);
       if (err.status === 409) {
         setError('El RUT ingresado ya se encuentra registrado');
       } else {

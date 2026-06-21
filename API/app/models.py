@@ -217,6 +217,7 @@ class CustodyLog(db.Model):
     estado_instante = db.Column(db.String(100), nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=True)
     tipo_alerta = db.Column(db.String(20), nullable=True, default='estándar')
+    descripcion = db.Column(db.Text, nullable=True)
 
     # Relaciones adicionales de compatibilidad con modelos antiguos
     asset = db.relationship('Activo', foreign_keys=[id_activo], backref=db.backref('legacy_custody_logs', lazy=True, overlaps="custody_logs,activo"), overlaps="activo,custody_logs")

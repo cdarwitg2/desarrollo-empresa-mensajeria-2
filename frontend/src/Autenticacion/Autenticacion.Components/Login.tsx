@@ -1,19 +1,12 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { User, Lock, AlertCircle } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useLogin } from '../Autenticacion.hooks';
 
 import FondoAuth from '../../img/Fondo_auth.png';
 
 export const Login: React.FC = () => {
-  const navigate = useNavigate();
-  const { credentials, handleChange, handleSubmit, error, isLoading, user } = useLogin();
-
-  useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
+  const { credentials, handleChange, handleSubmit, error, isLoading } = useLogin();
 
   return (
     <div className="min-h-screen bg-slate-950 relative flex items-center justify-center p-4 overflow-hidden">

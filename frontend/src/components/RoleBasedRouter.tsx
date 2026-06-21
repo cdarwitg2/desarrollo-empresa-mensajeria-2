@@ -10,6 +10,10 @@ import { DriverDashboard } from '../Mensajero/DriverDashboard';
 export const RoleBasedRouter: React.FC = () => {
   const { user, isLoading } = useAuth();
 
+  console.log('🔍 RoleBasedRouter - RENDERIZANDO');
+  console.log('🔍 RoleBasedRouter - isLoading:', isLoading);
+  console.log('🔍 RoleBasedRouter - user:', user);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
@@ -24,34 +28,43 @@ export const RoleBasedRouter: React.FC = () => {
   }
 
   if (!user) {
+    console.log('🔍 No hay usuario, redirigiendo a /login');
     return <Navigate to="/login" replace />;
   }
 
+  console.log('🔍 User roles:', user.roles);
+
   // Si el usuario solo tiene el rol 'usuario', mostrar ClientDashboard
   if (user.roles.length === 1 && user.roles.includes('usuario')) {
+    console.log('🔍 Redirigiendo a ClientDashboard');
     return <ClientDashboard />;
   }
 
   // Si tiene rol de mensajero, mostrar DriverDashboard
   if (user.roles.includes('mensajero')) {
+    console.log('🔍 Redirigiendo a DriverDashboard');
     return <DriverDashboard />;
   }
 
   // Si tiene rol de analista, mostrar AnalystDashboard
   if (user.roles.includes('analista')) {
+    console.log('🔍 Redirigiendo a AnalystDashboard');
     return <AnalystDashboard />;
   }
 
   // Si tiene rol de acopio o operador, mostrar OperatorDashboard
   if (user.roles.includes('acopio') || user.roles.includes('operador')) {
+    console.log('🔍 Redirigiendo a OperatorDashboard');
     return <OperatorDashboard />;
   }
 
   // Si tiene rol de administrador, mostrar AdminDashboard
   if (user.roles.includes('administrador')) {
+    console.log('🔍 Redirigiendo a AdminDashboard');
     return <AdminDashboard />;
   }
 
   // Fallback
+  console.log('🔍 Fallback a ClientDashboard');
   return <ClientDashboard />;
 };

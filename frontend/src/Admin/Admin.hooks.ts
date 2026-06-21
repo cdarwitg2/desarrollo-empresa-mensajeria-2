@@ -233,7 +233,8 @@ export const useUserModal = (editingUser: User | null, onSuccess: () => void, on
     try {
       await api.post('/api/admin/users', {
         ...formData,
-        rut: cleanRutForBackend(formData.rut)
+        rut: cleanRutForBackend(formData.rut),
+        rol: formData.rol.toUpperCase() // 👈 Enviar en mayúsculas
       });
       onSuccess();
       onClose();
@@ -263,7 +264,8 @@ export const useUserModal = (editingUser: User | null, onSuccess: () => void, on
     try {
       await api.put(`/api/admin/users/${cleanRutForBackend(formData.rut)}`, {
         ...formData,
-        rut: cleanRutForBackend(formData.rut)
+        rut: cleanRutForBackend(formData.rut),
+        rol: formData.rol.toUpperCase() // 👈 Enviar en mayúsculas
       });
       onSuccess();
       onClose();

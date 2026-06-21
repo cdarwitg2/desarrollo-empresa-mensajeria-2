@@ -10,12 +10,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
+    // Buscar en ambos almacenamientos
+    const storedToken = localStorage.getItem('token') || sessionStorage.getItem('token');
+    const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
     
     if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setToken(storedToken);
+        setUser(parsedUser);
+        console.log('✅ Sesión restaurada desde almacenamiento:', parsedUser);
+      } catch (error) {
+        console.error('❌ Error al parsear usuario almacenado:', error);
+        localStorage.removeItem('user');
+        sessionStorage.removeItem('user');
+      }
     }
     
     setIsLoading(false);
@@ -25,6 +34,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const response = await api.post('/api/auth/login', { rut, password });
+      
+      console.log('📨 Login response:', response);
       
       const data = response as LoginResponse;
 
@@ -38,11 +49,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ultima_conexion: new Date().toISOString(),
       };
 
+      console.log('👤 UserData a guardar:', userData);
+
+      // Guardar en ambos almacenamientos
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(userData));
+      sessionStorage.setItem('token', data.token);
+      sessionStorage.setItem('user', JSON.stringify(userData));
 
       setToken(data.token);
       setUser(userData);
+      
+      console.log('✅ Login exitoso - Usuario:', userData);
+      
+      return userData;
+    } catch (error) {
+      console.error('❌ Error en login:', error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -67,9 +90,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(userData));
+      sessionStorage.setItem('token', data.token);
+      sessionStorage.setItem('user', JSON.stringify(userData));
 
       setToken(data.token);
       setUser(userData);
+      
+      console.log('✅ Registro exitoso - Usuario:', userData);
+    } catch (error) {
+      console.error('❌ Error en registro:', error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -78,8 +108,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    console.log('✅ Sesión cerrada');
   };
 
   const hasRole = (role: string): boolean => {

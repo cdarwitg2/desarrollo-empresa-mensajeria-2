@@ -4,11 +4,13 @@ import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: string;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
-  const { user, token, isLoading } = useAuth();
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+  const { user, isLoading } = useAuth();
+
+  console.log('🔐 ProtectedRoute - isLoading:', isLoading);
+  console.log('🔐 ProtectedRoute - user:', user);
 
   if (isLoading) {
     return (
@@ -17,21 +19,17 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
           <div className="inline-block">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
           </div>
-          <p className="text-slate-400 mt-4">Cargando...</p>
+          <p className="text-slate-400 mt-4">Verificando autenticación...</p>
         </div>
       </div>
     );
   }
 
-  if (!token || !user) {
+  if (!user) {
+    console.log('🔐 No hay usuario, redirigiendo a /login');
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && !user.roles.includes(requiredRole)) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
+  console.log('🔐 Usuario autenticado, mostrando children');
   return <>{children}</>;
 };
-
-export default ProtectedRoute;
