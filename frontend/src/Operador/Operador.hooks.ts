@@ -103,12 +103,12 @@ export const useBandejaPaquetes = (
       setSelectedPackage(null);
 
       if (filter === 'all') {
-        const [solicitados, enTransito] = await Promise.all([
-          api.get('/api/packages/filter?estado=SOLICITADO'),
-          api.get('/api/packages/filter?estado=EN_TRANSITO')
-        ]);
-        const combined = [...(solicitados.packages || []), ...(enTransito.packages || [])];
-        setPackages(combined);
+        const data = await api.get('/api/packages/filter');
+        const excludedStates = ['EN_ACOPIO', 'EN_ACOPIO_ASIGNADO', 'EN_DISPUTA'];
+        const filtered = (data.packages || []).filter(
+          (pkg: any) => !excludedStates.includes(pkg.estado_actual)
+        );
+        setPackages(filtered);
       } else {
         const data = await api.get(`/api/packages/filter?estado=${filter}`);
         setPackages(data.packages || []);

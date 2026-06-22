@@ -366,7 +366,7 @@ const PaquetesAcopio: React.FC<PaquetesAcopioProps> = ({
               <div className="mt-4">
                 {canAssign(selectedPackage) ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <div className="relative">
                         <select
                           value={rutMensajero}
@@ -382,15 +382,6 @@ const PaquetesAcopio: React.FC<PaquetesAcopioProps> = ({
                           ))}
                         </select>
                       </div>
-                      <input
-                        type="text"
-                        value={contingencyToken}
-                        onChange={(e) => setContingencyToken(e.target.value.toUpperCase())}
-                        placeholder="Token de Contingencia (opcional)"
-                        className="bg-[#1a2332] p-3 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 text-white placeholder:text-slate-500 font-mono border border-white/5"
-                        disabled={isLoading}
-                        maxLength={6}
-                      />
                     </div>
 
                     <button

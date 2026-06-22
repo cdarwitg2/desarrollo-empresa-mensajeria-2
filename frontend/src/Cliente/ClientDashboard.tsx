@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { ShipmentForm } from './Cliente.Components/ShipmentForm';
 import { StateType } from './Cliente.types';
 import { useClientDashboard } from './Cliente.hooks';
+import ClienteIncidenceModal from './Cliente.Components/ClienteIncidenceModal';
+import { AlertTriangle } from 'lucide-react';
 import FondoCliente from '../img/Fondo_Cliente.png';
 
 const STATES_PIPELINE: StateType[] = ['SOLICITADO', 'EN_TRANSITO', 'EN_ACOPIO', 'ENTREGADO', 'RECIBIDO'];
@@ -21,7 +23,10 @@ export const ClientDashboard: React.FC = () => {
     setSelectedPackage,
     isLoading,
     error,
-    handleMarkAsReceived
+    handleMarkAsReceived,
+    isIncidenceModalOpen,
+    setIsIncidenceModalOpen,
+    handleSubmitIncidence
   } = useClientDashboard();
 
   const handleLogout = () => {
@@ -285,6 +290,25 @@ export const ClientDashboard: React.FC = () => {
                           <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Destino</p>
                           <p className="text-white font-medium">{selectedPackage.direccion_destino}</p>
                         </div>
+                        
+                        {(selectedPackage.estado_actual === 'ENTREGADO' || selectedPackage.estado_actual === 'RECIBIDO') && (
+                          <div className="col-span-2 pt-4 border-t border-white/5 mt-2 bg-emerald-500/10 p-4 rounded-lg border border-emerald-500/20">
+                            <h5 className="text-emerald-400 font-bold mb-2 flex items-center gap-2">
+                              <UserIcon className="w-4 h-4" />
+                              Información de Recepción
+                            </h5>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Recibido por</p>
+                                <p className="text-white font-medium">{(selectedPackage as any).receptor_nombre || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">RUT Receptor</p>
+                                <p className="text-white font-medium">{(selectedPackage as any).receptor_rut || 'N/A'}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         <div className="col-span-2 pt-4 border-t border-white/5">
                           <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Creado</p>
                           <p className="text-slate-300 text-sm">
@@ -296,9 +320,29 @@ export const ClientDashboard: React.FC = () => {
                         </div>
                       </div>
 
+                      {/* Banner Contingencia Offline */}
+                      {(selectedPackage.estado_actual === 'EN_TRANSITO' || selectedPackage.estado_actual === 'EN_TRANSITO_ENTREGA' || selectedPackage.estado_actual === 'EN_ACOPIO' || selectedPackage.estado_actual === 'EN_ACOPIO_ASIGNADO') && (selectedPackage as any).pin_contingencia && (
+                        <div className="mt-6 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
+                          <div className="flex items-start gap-3">
+                            <Info className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+                            <div>
+                              <h5 className="text-yellow-500 font-bold mb-1">PIN de Contingencia Offline</h5>
+                              <p className="text-sm text-slate-300 mb-2">
+                                Si el mensajero pierde conectividad al llegar, proporciónale este código para validar la entrega localmente.
+                              </p>
+                              <div className="bg-black/40 px-4 py-2 rounded-lg inline-block border border-yellow-500/20">
+                                <span className="font-mono text-xl font-bold tracking-widest text-yellow-400">
+                                  {(selectedPackage as any).pin_contingencia}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Acciones de Cliente */}
                       {selectedPackage.estado_actual === 'ENTREGADO' && (
-                        <div className="mt-auto pt-6">
+                        <div className="mt-auto pt-6 flex flex-col gap-3">
                           <button
                             onClick={handleMarkAsReceived}
                             disabled={isLoading}
@@ -306,6 +350,15 @@ export const ClientDashboard: React.FC = () => {
                           >
                             <ListChecks className="w-5 h-5" />
                             Marcar como Recibido
+                          </button>
+                          
+                          <button
+                            onClick={() => setIsIncidenceModalOpen(true)}
+                            disabled={isLoading}
+                            className="w-full px-6 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                          >
+                            <AlertTriangle className="w-4 h-4" />
+                            Reportar Problema
                           </button>
                         </div>
                       )}
@@ -334,6 +387,16 @@ export const ClientDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Modal de Incidencias */}
+      <ClienteIncidenceModal
+        isOpen={isIncidenceModalOpen}
+        onClose={() => setIsIncidenceModalOpen(false)}
+        onSubmit={handleSubmitIncidence}
+        packageId={selectedPackage?.id_activo || ''}
+        packageName={selectedPackage?.nombre || ''}
+        isLoading={isLoading}
+      />
     </div>
   );
 };

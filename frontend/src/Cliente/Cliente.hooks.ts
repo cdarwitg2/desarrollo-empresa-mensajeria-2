@@ -12,6 +12,7 @@ export const useClientDashboard = () => {
   const [selectedPackage, setSelectedPackage] = useState<ClientPackage | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isIncidenceModalOpen, setIsIncidenceModalOpen] = useState(false);
 
   useEffect(() => {
     sessionStorage.setItem('clientDashboardTab', activeTab);
@@ -22,9 +23,12 @@ export const useClientDashboard = () => {
       setIsLoading(true);
       setError('');
       setSelectedPackage(null);
-      
       const data = await api.get('/api/packages/my-packages');
-      setPackages(data.packages || []);
+      const formattedPackages = (data.packages || []).map((pkg: ClientPackage) => ({
+        ...pkg,
+        estado_actual: pkg.estado_actual?.toUpperCase()
+      }));
+      setPackages(formattedPackages);
     } catch (err: any) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
@@ -52,6 +56,21 @@ export const useClientDashboard = () => {
     }
   };
 
+  const handleSubmitIncidence = async (data: { motivo: string; descripcion: string }) => {
+    if (!selectedPackage) return;
+    try {
+      setIsLoading(true);
+      setError('');
+      await api.post(`/api/packages/${selectedPackage.id_activo}/incidencias`, data);
+      await fetchMyPackages();
+    } catch (err: any) {
+      setError(err instanceof Error ? err.message : 'Error al reportar la incidencia');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     activeTab,
     setActiveTab,
@@ -60,7 +79,61 @@ export const useClientDashboard = () => {
     setSelectedPackage,
     isLoading,
     error,
-    handleMarkAsReceived
+    handleMarkAsReceived,
+    isIncidenceModalOpen,
+    setIsIncidenceModalOpen,
+    handleSubmitIncidence
+  };
+};
+
+export const useClienteIncidenceModal = (
+  onSubmit: (data: { motivo: string; descripcion: string }) => Promise<void>,
+  onClose: () => void
+) => {
+  const [motivo, setMotivo] = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!motivo) {
+      setError('Debes seleccionar un motivo');
+      return;
+    }
+    if (!descripcion.trim()) {
+      setError('Debes ingresar una descripción');
+      return;
+    }
+    if (descripcion.trim().length < 10) {
+      setError('La descripción debe tener al menos 10 caracteres');
+      return;
+    }
+    try {
+      setError('');
+      await onSubmit({ motivo, descripcion });
+      setMotivo('');
+      setDescripcion('');
+      onClose();
+    } catch (err) {
+      setError('Error al enviar la incidencia. Intenta nuevamente.');
+    }
+  };
+
+  const handleClose = () => {
+    setMotivo('');
+    setDescripcion('');
+    setError('');
+    onClose();
+  };
+
+  return {
+    motivo,
+    setMotivo,
+    descripcion,
+    setDescripcion,
+    error,
+    handleSubmit,
+    handleClose
   };
 };
 

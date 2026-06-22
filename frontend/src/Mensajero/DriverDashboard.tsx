@@ -26,7 +26,13 @@ export const DriverDashboard: React.FC = () => {
     showMap,
     showKnockButton,
     travelState,
-    handleKnockDoor,
+    receptorNombre,
+    setReceptorNombre,
+    receptorRut,
+    setReceptorRut,
+    contingencyToken,
+    setContingencyToken,
+    handleNotificarLlegada,
     handleRecoger,
     handleEntregar,
     handleSelectPackage,
@@ -355,45 +361,66 @@ export const DriverDashboard: React.FC = () => {
                 isTraveling={travelState.isTraveling}
               />
 
-              {/* Botón Tocar Puerta */}
+              {/* Botón Notificar Llegada */}
               {showKnockButton && !travelState.isComplete && !travelState.isSuccess && (
                 <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-[1000]">
                   <button
-                    onClick={handleKnockDoor}
-                    disabled={travelState.isKnocking || travelState.knockAttempts > 3}
-                    className={`px-8 py-4 rounded-xl font-bold text-white transition-all transform hover:scale-105 shadow-lg flex items-center gap-3 ${
-                      travelState.isKnocking || travelState.knockAttempts > 3
-                        ? 'bg-slate-600 cursor-not-allowed opacity-50'
-                        : travelState.knockAttempts === 3
-                        ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/30'
-                        : 'bg-yellow-600 hover:bg-yellow-500 shadow-yellow-500/30'
-                    }`}
+                    onClick={handleNotificarLlegada}
+                    className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/30 rounded-xl font-bold text-white transition-all transform hover:scale-105 shadow-lg flex items-center gap-3"
                   >
-                    {travelState.isKnocking ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Tocando...
-                      </>
-                    ) : (
-                      <>
-                        <DoorOpen className="w-5 h-5" />
-                        Tocar Puerta
-                      </>
-                    )}
-                    <span className="ml-2 px-2 py-1 bg-black/30 rounded-lg text-xs font-mono">
-                      {travelState.knockAttempts}/3
-                    </span>
+                    <DoorOpen className="w-5 h-5" />
+                    Notificar Llegada
                   </button>
                 </div>
               )}
 
-              {/* Mensaje de éxito - FONDO BLANCO */}
+              {/* Formulario de Entrega - FONDO BLANCO */}
               {travelState.isSuccess && (
-                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-white px-6 py-3 rounded-xl shadow-lg">
-                  <p className="text-slate-900 font-bold flex items-center gap-2">
-                    <Users className="w-5 h-5 text-emerald-600" />
-                    ¡El cliente ha salido! Entrega el paquete
-                  </p>
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-[#1a2332] border border-emerald-500/30 p-6 rounded-2xl shadow-2xl w-[90%] max-w-md">
+                  <h4 className="text-white font-bold mb-4 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-emerald-400" />
+                    Datos de Recepción
+                  </h4>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-1">Nombre de quien recibe</label>
+                      <input 
+                        type="text" 
+                        value={receptorNombre}
+                        onChange={(e) => setReceptorNombre(e.target.value)}
+                        placeholder="Ej. Juan Pérez"
+                        className="w-full bg-[#0b111a] border border-white/10 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-1">RUT de quien recibe</label>
+                      <input 
+                        type="text" 
+                        value={receptorRut}
+                        onChange={(e) => setReceptorRut(e.target.value)}
+                        placeholder="Ej. 12345678-9"
+                        className="w-full bg-[#0b111a] border border-white/10 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                      />
+                    </div>
+                    <div className="relative my-4">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-white/10"></div>
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-[#1a2332] text-slate-500">O validar mediante</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-1">Token de Excepción (Offline)</label>
+                      <input 
+                        type="text" 
+                        value={contingencyToken}
+                        onChange={(e) => setContingencyToken(e.target.value)}
+                        placeholder="PIN de 6 dígitos"
+                        className="w-full bg-[#0b111a] border border-yellow-500/30 rounded-xl px-4 py-2 text-yellow-400 font-mono focus:outline-none focus:border-yellow-500 transition-colors placeholder:text-yellow-500/30"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

@@ -16,6 +16,9 @@ export const useDriverDashboard = () => {
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [showKnockButton, setShowKnockButton] = useState(false);
+  const [receptorNombre, setReceptorNombre] = useState('');
+  const [receptorRut, setReceptorRut] = useState('');
+  const [contingencyToken, setContingencyToken] = useState('');
 
   const [travelState, setTravelState] = useState<TravelState>({
     progress: 0,
@@ -136,81 +139,19 @@ export const useDriverDashboard = () => {
         }));
         
         setShowKnockButton(true);
-        showToast('📍 ¡Has llegado al destino! Toca la puerta', 'success');
+        showToast('📍 ¡Has llegado al destino! Notifica tu llegada', 'success');
       }
     }, 1000);
   };
 
-  const getSuccessThreshold = (attempts: number): number => {
-    if (attempts >= 3) return 1.0;
-    if (attempts === 2) return 0.66;
-    return 0.33;
-  };
-
-  const handleKnockDoor = async () => {
-    if (travelState.isKnocking) return;
-    if (travelState.knockAttempts > 3) return;
-    if (travelState.isSuccess) return;
-    if (travelState.isComplete) return;
-
-    setTravelState(prev => ({ ...prev, isKnocking: true }));
+  const handleNotificarLlegada = () => {
+    setTravelState(prev => ({
+      ...prev,
+      isSuccess: true,
+      isComplete: true,
+    }));
     setShowKnockButton(false);
-
-    showToast('🔔 Tocando la puerta...', 'info');
-
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    const currentAttempts = travelState.knockAttempts;
-    const threshold = getSuccessThreshold(currentAttempts);
-    const randomValue = Math.random();
-    const isSuccess = randomValue < threshold;
-
-    console.log(`🔍 Intento ${currentAttempts}: random=${randomValue.toFixed(3)}, umbral=${threshold.toFixed(3)}, éxito=${isSuccess}`);
-
-    if (isSuccess) {
-      setTravelState(prev => ({
-        ...prev,
-        isSuccess: true,
-        isComplete: true,
-        knockAttempts: 0,
-        isKnocking: false,
-      }));
-      setShowKnockButton(false);
-      showToast('🚪 ¡El cliente ha salido! Entrega el paquete', 'success');
-    } else {
-      const newAttempts = currentAttempts + 1;
-      
-      if (newAttempts > 3) {
-        setTravelState(prev => ({
-          ...prev,
-          isSuccess: false,
-          isComplete: true,
-          knockAttempts: 0,
-          isKnocking: false,
-        }));
-        setShowKnockButton(false);
-        await reportIncidence(selectedPackage!);
-        showToast('⚠️ Nadie respondió después de 3 intentos. Incidencia reportada.', 'error');
-      } else {
-        setTravelState(prev => ({
-          ...prev,
-          knockAttempts: newAttempts,
-          isKnocking: false,
-        }));
-        
-        const nextThreshold = getSuccessThreshold(newAttempts) * 100;
-        showToast(
-          `🔔 Nadie responde, intenta de nuevo. (Intento ${newAttempts}/3, próxima probabilidad: ${Math.round(nextThreshold)}%)`,
-          'warning'
-        );
-        
-        setTimeout(() => {
-          if (!travelState.isSuccess && !travelState.isComplete) {
-            setShowKnockButton(true);
-          }
-        }, 1500);
-      }
-    }
+    showToast('🚪 Cliente notificado. Completa el formulario de entrega.', 'success');
   };
 
   const reportIncidence = async (pkg: PackageType) => {
@@ -277,17 +218,23 @@ export const useDriverDashboard = () => {
   const handleEntregar = async (packageId: string, idActivo: string, integridad: string) => {
     if (actionLoading === packageId) return;
 
+    if (!contingencyToken && (!receptorNombre.trim() || !receptorRut.trim())) {
+      showToast('Debes ingresar los datos del receptor o el token de contingencia.', 'error');
+      return;
+    }
+
     setActionLoading(packageId);
     setError('');
 
     try {
-      await updateActivoEstado(
-        idActivo,
-        'ENTREGADO',
+      const response = await api.patch(`/api/packages/${idActivo}/estado`, {
+        estado: 'ENTREGADO',
         integridad,
-        '',
-        user?.rut
-      );
+        rut_mensajero: user?.rut,
+        token_contingencia: contingencyToken.trim(),
+        receptor_nombre: receptorNombre.trim(),
+        receptor_rut: receptorRut.trim()
+      });
 
       showToast(`✅ Paquete "${packageId}" entregado exitosamente`, 'success');
       await fetchMessengerPackages();
@@ -350,6 +297,9 @@ export const useDriverDashboard = () => {
     setShowMap(false);
     setSelectedPackage(null);
     setShowKnockButton(false);
+    setReceptorNombre('');
+    setReceptorRut('');
+    setContingencyToken('');
     
     setTravelState({
       progress: 0,
@@ -384,7 +334,13 @@ export const useDriverDashboard = () => {
     showMap,
     showKnockButton,
     travelState,
-    handleKnockDoor,
+    receptorNombre,
+    setReceptorNombre,
+    receptorRut,
+    setReceptorRut,
+    contingencyToken,
+    setContingencyToken,
+    handleNotificarLlegada,
     handleRecoger,
     handleEntregar,
     handleSelectPackage,

@@ -149,8 +149,13 @@ class Activo(db.Model):
     lng = db.Column(db.Float, nullable=True)
 
     # Campos de Contingencia (Hardware Falla)
-    token_contingencia = db.Column(db.String(6), nullable=True)
+    token_hash = db.Column(db.String(64), nullable=True)
+    token_claro_temporal = db.Column(db.String(6), nullable=True)
     token_expira = db.Column(db.DateTime, nullable=True)
+
+    # Campos de Entrega
+    receptor_nombre = db.Column(db.String(100), nullable=True)
+    receptor_rut = db.Column(db.String(20), nullable=True)
 
     # Relación con Usuario para compatibilidad
     usuario = db.relationship('Usuario', foreign_keys=[rut_remitente], backref=db.backref('assets', lazy=True))
@@ -177,9 +182,9 @@ class Activo(db.Model):
     def id(self, value):
         self.id_activo = value
 
-    def to_dict(self):
+    def to_dict(self, rol_usuario=None):
         """Convierte el activo a diccionario"""
-        return {
+        data = {
             'id': self.id_activo,  # Alias de compatibilidad
             'id_activo': self.id_activo,
             'nombre': self.nombre or f"Activo {self.id_activo}",
@@ -194,12 +199,21 @@ class Activo(db.Model):
             'timestamp_registro': self.timestamp_registro.isoformat() if self.timestamp_registro else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'token_contingencia': self.token_contingencia,
             'tiempo_asignacion': self.tiempo_asignacion.isoformat() if self.tiempo_asignacion else None,
             'is_blocked': self.is_blocked,
             'lat': self.lat,
-            'lng': self.lng
+            'lng': self.lng,
+            'receptor_nombre': self.receptor_nombre,
+            'receptor_rut': self.receptor_rut
         }
+        
+        # Zero-Knowledge: Solo enviar los datos permitidos según el rol
+        if rol_usuario == 'mensajero' or (hasattr(RolUsuario, 'MENSAJERO') and rol_usuario == RolUsuario.MENSAJERO):
+            data['token_hash'] = self.token_hash
+        elif rol_usuario in ['usuario', 'remitente', 'cliente', 'analista', 'administrador'] or (hasattr(RolUsuario, 'REMITENTE') and rol_usuario == RolUsuario.REMITENTE):
+            data['pin_contingencia'] = self.token_claro_temporal
+            
+        return data
 
 
 class CustodyLog(db.Model):

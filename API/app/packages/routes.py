@@ -30,6 +30,7 @@ def create_package():
     try:
         claims = get_jwt()
         rut_remitente = claims.get('rut')
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         
         if not rut_remitente:
             return jsonify({'error': 'Token inválido'}), 401
@@ -78,7 +79,7 @@ def create_package():
             'success': True,
             'message': 'Paquete creado exitosamente',
             'id': nuevo_activo.id_activo,
-            'asset': nuevo_activo.to_dict()
+            'asset': nuevo_activo.to_dict(rol_usuario)
         }), 201
     
     except Exception as e:
@@ -95,6 +96,7 @@ def list_packages():
     try:
         claims = get_jwt()
         rut_usuario = claims.get('rut')
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         
         if not rut_usuario:
             return jsonify({'error': 'Token inválido'}), 401
@@ -105,7 +107,7 @@ def list_packages():
         return jsonify({
             'success': True,
             'total': len(activos),
-            'assets': [activo.to_dict() for activo in activos]
+            'assets': [activo.to_dict(rol_usuario) for activo in activos]
         }), 200
     
     except Exception as e:
@@ -121,6 +123,7 @@ def get_my_packages():
     try:
         claims = get_jwt()
         rut_usuario = claims.get('rut')
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         
         if not rut_usuario:
             return jsonify({'error': 'Token inválido'}), 401
@@ -132,7 +135,7 @@ def get_my_packages():
             'success': True,
             'rut_usuario': rut_usuario,
             'total': len(activos),
-            'packages': [activo.to_dict() for activo in activos]
+            'packages': [activo.to_dict(rol_usuario) for activo in activos]
         }), 200
     
     except Exception as e:
@@ -148,6 +151,7 @@ def get_package(id_activo):
     try:
         claims = get_jwt()
         rut_usuario = claims.get('rut')
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         
         if not rut_usuario:
             return jsonify({'error': 'Token inválido'}), 401
@@ -160,7 +164,7 @@ def get_package(id_activo):
         
         return jsonify({
             'success': True,
-            'asset': activo.to_dict()
+            'asset': activo.to_dict(rol_usuario)
         }), 200
     
     except Exception as e:
@@ -176,6 +180,7 @@ def get_pending_packages():
     try:
         claims = get_jwt()
         rut_responsable = claims.get('rut')
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         
         if not rut_responsable:
             return jsonify({'error': 'Token inválido'}), 401
@@ -186,7 +191,7 @@ def get_pending_packages():
         return jsonify({
             'success': True,
             'total': len(pending_packages),
-            'packages': [pkg.to_dict() for pkg in pending_packages]
+            'packages': [pkg.to_dict(rol_usuario) for pkg in pending_packages]
         }), 200
     
     except Exception as e:
@@ -202,6 +207,7 @@ def filter_packages():
     try:
         claims = get_jwt()
         rut_responsable = claims.get('rut')
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         
         if not rut_responsable:
             return jsonify({'error': 'Token inválido'}), 401
@@ -225,7 +231,7 @@ def filter_packages():
             'success': True,
             'filter': estado_str if estado_str else 'todos',
             'total': len(activos),
-            'packages': [pkg.to_dict() for pkg in activos]
+            'packages': [pkg.to_dict(rol_usuario) for pkg in activos]
         }), 200
     
     except Exception as e:
@@ -241,6 +247,7 @@ def generar_contingencia(id_activo):
     try:
         claims = get_jwt()
         rut_responsable = claims.get('rut')
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         
         if not rut_responsable:
             return jsonify({'error': 'Token inválido'}), 401
@@ -288,6 +295,7 @@ def update_package_status(id_activo):
     try:
         claims = get_jwt()
         rut_responsable = claims.get('rut')
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         
         if not rut_responsable:
             return jsonify({'error': 'Token inválido'}), 401
@@ -299,6 +307,8 @@ def update_package_status(id_activo):
         nuevo_estado_str = data.get('estado', '').strip()
         integridad = data.get('integridad', '').strip()
         rut_mensajero = data.get('rut_mensajero', '').strip()
+        receptor_nombre = data.get('receptor_nombre', '').strip()
+        receptor_rut = data.get('receptor_rut', '').strip()
         
         if not nuevo_estado_str:
             return jsonify({'error': 'El campo "estado" es obligatorio'}), 400
@@ -323,17 +333,20 @@ def update_package_status(id_activo):
         usar_offline_sync = False
         
         if token_ingresado:
-            if not activo.token_contingencia:
+            if not activo.token_hash:
                 return jsonify({'error': 'Este activo no tiene contingencia generada.'}), 400
                 
-            if activo.token_contingencia.upper() != token_ingresado.upper():
+            import hashlib
+            hash_input = hashlib.sha256(token_ingresado.encode('utf-8')).hexdigest()
+            if activo.token_hash.upper() != hash_input.upper():
                 return jsonify({'error': 'Token de contingencia inválido.'}), 403
                 
             if activo.token_expira and datetime.utcnow() > activo.token_expira:
                 return jsonify({'error': 'El token de contingencia ha expirado.'}), 403
                 
             # Token válido: destruirlo para un solo uso
-            activo.token_contingencia = None
+            activo.token_hash = None
+            activo.token_claro_temporal = None
             activo.token_expira = None
             usar_offline_sync = True
 
@@ -368,6 +381,17 @@ def update_package_status(id_activo):
         
         activo.estado_actual = nuevo_estado_enum
         
+        # --- GENERACION AUTOMATICA ZERO-KNOWLEDGE ---
+        if nuevo_estado_enum == EstadoActivo.EN_TRANSITO:
+            import hashlib, random, string
+            pin_plano = ''.join(random.choices(string.digits, k=6))
+            pin_hash = hashlib.sha256(pin_plano.encode('utf-8')).hexdigest()
+            activo.token_hash = pin_hash
+            activo.token_claro_temporal = pin_plano
+            from datetime import timedelta
+            activo.token_expira = datetime.utcnow() + timedelta(hours=24)
+        # --------------------------------------------
+        
         if nuevo_estado_enum == EstadoActivo.EN_ACOPIO:
             activo.rut_mensajero = None
             activo.tiempo_asignacion = None
@@ -381,6 +405,12 @@ def update_package_status(id_activo):
         
         if integridad:
             activo.integridad = integridad
+            
+        if nuevo_estado_enum == EstadoActivo.ENTREGADO:
+            if receptor_nombre:
+                activo.receptor_nombre = receptor_nombre
+            if receptor_rut:
+                activo.receptor_rut = receptor_rut
         
         custody_log = CustodyLog(
             id_activo=id_activo,
@@ -396,7 +426,7 @@ def update_package_status(id_activo):
         return jsonify({
             'success': True,
             'message': f'Estado actualizado de {estado_anterior} a {nuevo_estado_enum.value}',
-            'asset': activo.to_dict(),
+            'asset': activo.to_dict(rol_usuario),
             'log': custody_log.to_dict()
         }), 200
     
@@ -414,6 +444,7 @@ def get_package_logs(id_activo):
     try:
         claims = get_jwt()
         rut_usuario = claims.get('rut')
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         
         if not rut_usuario:
             return jsonify({'error': 'Token inválido'}), 401
@@ -478,10 +509,11 @@ def asignar_mensajero(id_activo):
     Cambia el estado a EN_ACOPIO_ASIGNADO
     """
     try:
-        rut_actual = get_jwt()
+        claims = get_jwt()
+        rut_actual = claims
         if not rut_actual:
             return jsonify({'error': 'Token inválido'}), 401
-        
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         rut_actual = rut_actual.get('rut')
         
         activo = Activo.query.filter_by(id_activo=id_activo).first()
@@ -536,7 +568,7 @@ def asignar_mensajero(id_activo):
         return jsonify({
             'success': True,
             'message': f'Mensajero {rut_mensajero} asignado exitosamente',
-            'asset': activo.to_dict(),
+            'asset': activo.to_dict(rol_usuario),
             'log': custody_log.to_dict()
         }), 200
         
@@ -552,10 +584,11 @@ def report_incidence(id_activo):
     Reporta una incidencia para un paquete/activo
     """
     try:
-        rut_actual = get_jwt()
+        claims = get_jwt()
+        rut_actual = claims
         if not rut_actual:
             return jsonify({'error': 'Token inválido'}), 401
-        
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         rut_actual = rut_actual.get('rut')
         
         activo = Activo.query.filter_by(id_activo=id_activo).first()
@@ -653,6 +686,7 @@ def get_my_assigned_packages():
     try:
         claims = get_jwt()
         rut_mensajero = claims.get('rut')
+        rol_usuario = claims.get('roles', ['usuario'])[0] if claims else 'usuario'
         
         if not rut_mensajero:
             return jsonify({'error': 'Token inválido'}), 401
@@ -666,7 +700,7 @@ def get_my_assigned_packages():
         return jsonify({
             'success': True,
             'total': len(paquetes),
-            'packages': [pkg.to_dict() for pkg in paquetes]
+            'packages': [pkg.to_dict(rol_usuario) for pkg in paquetes]
         }), 200
         
     except Exception as e:

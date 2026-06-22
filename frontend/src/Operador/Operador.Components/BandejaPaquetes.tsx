@@ -136,7 +136,7 @@ const BandejaPaquetes: React.FC<BandejaPaquetesProps> = ({
         {/* Left Column: List */}
         <div className="lg:col-span-4 flex flex-col h-full bg-[#131b26] rounded-2xl border border-white/5 p-4 overflow-hidden">
           <div className="flex gap-2 mb-4 flex-wrap">
-            {['all', 'SOLICITADO', 'EN_TRANSITO'].map(f => (
+            {['all', 'SOLICITADO', 'EN_TRANSITO', 'EN_TRANSITO_ENTREGA', 'ENTREGADO', 'RECIBIDO'].map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -146,7 +146,7 @@ const BandejaPaquetes: React.FC<BandejaPaquetesProps> = ({
                     : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
                 }`}
               >
-                {f === 'all' ? 'Todos' : f.replace('_', ' ')}
+                {f === 'all' ? 'Todos' : f.replace(/_/g, ' ')}
               </button>
             ))}
           </div>
@@ -311,7 +311,7 @@ const BandejaPaquetes: React.FC<BandejaPaquetesProps> = ({
 
               {/* Controles */}
               <div className="mt-4">
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 gap-4 mb-4">
                   <div className="relative">
                     <select
                       value={rutMensajero}
@@ -327,15 +327,6 @@ const BandejaPaquetes: React.FC<BandejaPaquetesProps> = ({
                       ))}
                     </select>
                   </div>
-                  <input
-                    type="text"
-                    value={contingencyToken}
-                    onChange={(e) => setContingencyToken(e.target.value.toUpperCase())}
-                    placeholder="Token de Contingencia (opcional)"
-                    className="bg-[#1a2332] p-3 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 text-white placeholder:text-slate-500 font-mono border border-white/5"
-                    disabled={!canPerformActions || isLoading}
-                    maxLength={6}
-                  />
                 </div>
 
                 <div className="flex gap-4">
