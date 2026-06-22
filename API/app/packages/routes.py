@@ -641,6 +641,40 @@ def report_incidence(id_activo):
         return jsonify({'error': f'Error al reportar incidencia: {str(e)}'}), 500
 
 
+@packages_bp.route('/<id_activo>/incidencia', methods=['GET'])
+@jwt_required()
+def get_incidencia(id_activo):
+    """
+    Obtiene los detalles de la incidencia reportada para un paquete
+    """
+    try:
+        # Buscar el último log de custodia de tipo crítico (incidencia)
+        log = CustodyLog.query.filter_by(id_activo=id_activo, tipo_alerta='crítico').order_by(CustodyLog.timestamp_accion.desc()).first()
+        
+        if not log:
+            return jsonify({'error': 'Incidencia no encontrada'}), 404
+            
+        motivo = "Desconocido"
+        descripcion = log.descripcion or "Sin descripción"
+        
+        if log.descripcion and "Motivo:" in log.descripcion and "Descripción:" in log.descripcion:
+            import re
+            match = re.search(r"Motivo: (.*?) - Descripción: (.*)", log.descripcion, re.DOTALL)
+            if match:
+                motivo = match.group(1).strip()
+                descripcion = match.group(2).strip()
+                
+        return jsonify({
+            'incidencia': {
+                'motivo': motivo,
+                'descripcion': descripcion,
+                'fecha': log.timestamp_accion.isoformat() if log.timestamp_accion else None,
+                'reportado_por': log.id_responsable or log.rut_responsable
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener incidencia: {str(e)}'}), 500
+
 @packages_bp.route('/<id_activo>/tiempo-restante', methods=['GET'])
 @jwt_required()
 def get_tiempo_restante(id_activo):
